@@ -1,0 +1,6 @@
+{
+  "name": "Files",
+  "description": "Google Files style file manager app with Clean, Browse, Share, Safe Folder, and rich media viewers by Akash Kumar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
