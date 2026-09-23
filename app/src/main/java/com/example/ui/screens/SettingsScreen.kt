@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -38,6 +39,14 @@ fun SettingsScreen(
     var notificationsEnabled by remember { mutableStateOf(true) }
     var showLanguagePicker by remember { mutableStateOf(false) }
     var showOnScreenPermissionModal by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = true) {
+        when {
+            showLanguagePicker -> showLanguagePicker = false
+            showOnScreenPermissionModal -> showOnScreenPermissionModal = false
+            else -> onBack()
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

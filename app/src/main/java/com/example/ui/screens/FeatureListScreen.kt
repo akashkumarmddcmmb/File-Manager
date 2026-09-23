@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +36,9 @@ fun FeatureListScreen(
     language: AppLanguage,
     onBack: () -> Unit
 ) {
+    BackHandler(enabled = true) {
+        onBack()
+    }
     val features = listOf(
         FeatureItem(
             titleEn = "Full Local File System Scanner",

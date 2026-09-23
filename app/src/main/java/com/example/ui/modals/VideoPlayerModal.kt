@@ -1,5 +1,6 @@
 package com.example.ui.modals
 
+import android.app.Activity
 import android.net.Uri
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -8,6 +9,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -21,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -30,6 +33,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -148,6 +154,25 @@ fun VideoPlayerModal(
         }
     }
 
+    val activity = context as? Activity
+    DisposableEffect(Unit) {
+        val window = activity?.window
+        val insetsController = if (window != null) WindowCompat.getInsetsController(window, window.decorView) else null
+        insetsController?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        insetsController?.hide(WindowInsetsCompat.Type.systemBars())
+        onDispose {
+            insetsController?.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    var showDoubleTapFeedback by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(showDoubleTapFeedback) {
+        if (showDoubleTapFeedback != null) {
+            delay(800)
+            showDoubleTapFeedback = null
+        }
+    }
+
     Dialog(
         onDismissRequest = {
             exoPlayer.stop()
@@ -155,6 +180,7 @@ fun VideoPlayerModal(
         },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
             dismissOnBackPress = true,
             dismissOnClickOutside = false
         )
@@ -168,15 +194,37 @@ fun VideoPlayerModal(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        if (!isLocked) {
-                            showControls = !showControls
-                        } else {
-                            showControls = true
-                        }
+                    .pointerInput(isLocked) {
+                        detectTapGestures(
+                            onTap = {
+                                if (!isLocked) {
+                                    showControls = !showControls
+                                } else {
+                                    showControls = true
+                                }
+                            },
+                            onDoubleTap = { offset ->
+                                if (!isLocked) {
+                                    val screenWidth = size.width
+                                    if (offset.x < screenWidth * 0.4f) {
+                                        // Left side -> Rewind 10s
+                                        val newPos = (exoPlayer.currentPosition - 10000).coerceAtLeast(0)
+                                        exoPlayer.seekTo(newPos)
+                                        currentPos = (newPos / 1000).toInt()
+                                        showDoubleTapFeedback = "-10s"
+                                    } else if (offset.x > screenWidth * 0.6f) {
+                                        // Right side -> Forward 10s
+                                        val newPos = (exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration)
+                                        exoPlayer.seekTo(newPos)
+                                        currentPos = (newPos / 1000).toInt()
+                                        showDoubleTapFeedback = "+10s"
+                                    } else {
+                                        // Center double tap -> Cycle Aspect Ratio (Full Screen Zoom / Fit Screen)
+                                        onCycleAspectRatio()
+                                    }
+                                }
+                            }
+                        )
                     }
             ) {
                 // REAL HARDWARE-ACCELERATED VIDEO VIEW
@@ -192,8 +240,9 @@ fun VideoPlayerModal(
                             resizeMode = when (aspectRatioMode) {
                                 VideoAspectRatioMode.FIT_SCREEN -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 VideoAspectRatioMode.FILL_CROP -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                VideoAspectRatioMode.ORIGINAL_RATIO -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                                VideoAspectRatioMode.ORIGINAL_RATIO -> AspectRatioFrameLayout.RESIZE_MODE_FILL
                             }
+                            setBackgroundColor(android.graphics.Color.BLACK)
                         }
                     },
                     update = { playerView ->
@@ -201,11 +250,39 @@ fun VideoPlayerModal(
                         playerView.resizeMode = when (aspectRatioMode) {
                             VideoAspectRatioMode.FIT_SCREEN -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                             VideoAspectRatioMode.FILL_CROP -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                            VideoAspectRatioMode.ORIGINAL_RATIO -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                            VideoAspectRatioMode.ORIGINAL_RATIO -> AspectRatioFrameLayout.RESIZE_MODE_FILL
                         }
                     },
                     modifier = Modifier.fillMaxSize()
                 )
+
+                // Double Tap Feedback Indicator
+                if (showDoubleTapFeedback != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(if (showDoubleTapFeedback == "-10s") Alignment.CenterStart else Alignment.CenterEnd)
+                            .padding(horizontal = 48.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.7f))
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (showDoubleTapFeedback == "-10s") Icons.Default.FastRewind else Icons.Default.FastForward,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = showDoubleTapFeedback!!,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
+                    }
+                }
 
                 // Subtitles Overlay
                 if (activeSubtitles) {

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -119,6 +120,28 @@ fun CategoryFileListScreen(
     }
 
     var currentFolderPath by remember(storageDevice) { mutableStateOf(rootPath) }
+
+    BackHandler(enabled = true) {
+        when {
+            searchQuery.isNotBlank() -> {
+                searchQuery = ""
+            }
+            showCreateFolderDialog -> {
+                showCreateFolderDialog = false
+            }
+            storageDevice != null && currentFolderPath.isNotBlank() && currentFolderPath != rootPath -> {
+                val parent = File(currentFolderPath).parent
+                if (parent != null && parent.startsWith(rootPath)) {
+                    currentFolderPath = parent
+                } else {
+                    currentFolderPath = rootPath
+                }
+            }
+            else -> {
+                onBack()
+            }
+        }
+    }
 
     val customFolders = remember { mutableStateListOf<FolderDisplayItem>() }
 

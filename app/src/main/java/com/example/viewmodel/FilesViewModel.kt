@@ -454,14 +454,7 @@ class FilesViewModel : ViewModel() {
         media3AudioManager?.stop()
         videoAudioEngine.stop()
         
-        val detectedDuration = videoAudioEngine.startPlaying(
-            fileName = file.name,
-            filePath = file.path,
-            startSeconds = 0
-        )
-        val duration = if (detectedDuration > 0) detectedDuration else if (file.durationSeconds > 0) file.durationSeconds else 180
-        videoAudioEngine.setPlaybackSpeed(_uiState.value.videoPlaybackSpeed)
-        videoAudioEngine.setVolume(_uiState.value.videoVolume)
+        val duration = if (file.durationSeconds > 0) file.durationSeconds else 180
         _uiState.update {
             it.copy(
                 playingVideoFile = file,
@@ -477,11 +470,6 @@ class FilesViewModel : ViewModel() {
 
     fun toggleVideoPlayPause() {
         val willPlay = !_uiState.value.isVideoPlaying
-        if (willPlay) {
-            videoAudioEngine.resume()
-        } else {
-            videoAudioEngine.pause()
-        }
         _uiState.update { it.copy(isVideoPlaying = willPlay) }
     }
 
@@ -499,7 +487,6 @@ class FilesViewModel : ViewModel() {
 
     fun seekVideo(positionSeconds: Int) {
         val clamped = positionSeconds.coerceIn(0, _uiState.value.videoDurationSeconds)
-        videoAudioEngine.seekTo(clamped)
         _uiState.update {
             it.copy(videoPositionSeconds = clamped)
         }
@@ -531,7 +518,6 @@ class FilesViewModel : ViewModel() {
     }
 
     fun setVideoPlaybackSpeed(speed: Float) {
-        videoAudioEngine.setPlaybackSpeed(speed)
         _uiState.update { it.copy(videoPlaybackSpeed = speed) }
     }
 
@@ -552,7 +538,6 @@ class FilesViewModel : ViewModel() {
 
     fun setVideoVolume(vol: Float) {
         val clamped = vol.coerceIn(0f, 1f)
-        videoAudioEngine.setVolume(clamped)
         _uiState.update { it.copy(videoVolume = clamped) }
     }
 

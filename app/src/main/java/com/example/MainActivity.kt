@@ -1,7 +1,10 @@
 package com.example
 
+import android.app.Activity
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -101,6 +104,95 @@ private fun MainAppContent(
     var archiveToCompressFiles by remember { mutableStateOf<List<FileItem>?>(null) }
     var archiveToExtractFile by remember { mutableStateOf<FileItem?>(null) }
     var archiveToViewFile by remember { mutableStateOf<FileItem?>(null) }
+
+    var lastBackPressTime by remember { mutableLongStateOf(0L) }
+
+    BackHandler(enabled = true) {
+        when {
+            // 1. Drawer open -> close drawer
+            drawerState.isOpen -> {
+                coroutineScope.launch { drawerState.close() }
+            }
+            // 2. Active Archive Modals -> close archive modal
+            archiveToViewFile != null -> {
+                archiveToViewFile = null
+            }
+            archiveToExtractFile != null -> {
+                archiveToExtractFile = null
+            }
+            archiveToCompressFiles != null -> {
+                archiveToCompressFiles = null
+            }
+            // 3. Active Media Modals -> close media viewer
+            activeImageFile != null -> {
+                activeImageFile = null
+            }
+            activePdfFile != null -> {
+                activePdfFile = null
+            }
+            activeVideoFile != null || uiState.showFullVideoPlayer -> {
+                viewModel.stopVideoPlayback()
+                viewModel.closeVideoPlayer()
+                activeVideoFile = null
+            }
+            activeMusicFile != null || uiState.showFullAudioPlayer -> {
+                viewModel.closeFullAudioPlayer()
+                activeMusicFile = null
+            }
+            // 4. Active System & Settings Modals -> close modal
+            showLegalPoliciesModal -> {
+                showLegalPoliciesModal = false
+            }
+            showPinChangeModal -> {
+                showPinChangeModal = false
+            }
+            showLanguageModal -> {
+                showLanguageModal = false
+            }
+            showStorageBreakdownModal -> {
+                showStorageBreakdownModal = false
+            }
+            showTrashModal -> {
+                showTrashModal = false
+            }
+            showSafeFolderModal -> {
+                showSafeFolderModal = false
+            }
+            // 5. Multi-selection active -> clear archive selection
+            uiState.selectedFilesForArchive.isNotEmpty() -> {
+                viewModel.closeArchiveCompressDialog()
+            }
+            // 6. Search query active -> clear search
+            uiState.searchQuery.isNotBlank() -> {
+                viewModel.setSearchQuery("")
+            }
+            // 7. In Sub-screens (CATEGORY_FILE_LIST, SETTINGS, FEATURE_LIST) -> step back to MAIN_TABS
+            currentScreen != AppNavScreen.MAIN_TABS -> {
+                activeCategoryFilter = null
+                activeStorageDevice = null
+                currentScreen = AppNavScreen.MAIN_TABS
+            }
+            // 8. If on CLEAN or SHARE tab -> step back to default BROWSE tab
+            uiState.currentTab != MainTab.BROWSE -> {
+                viewModel.setTab(MainTab.BROWSE)
+            }
+            // 9. Root level: Double-back to exit prevention
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastBackPressTime < 2000) {
+                    (context as? Activity)?.finish()
+                } else {
+                    lastBackPressTime = now
+                    val exitMsg = if (uiState.language == AppLanguage.HINDI) {
+                        "ऐप बंद करने के लिए दोबारा बैक दबाएं"
+                    } else {
+                        "Press back again to exit"
+                    }
+                    Toast.makeText(context, exitMsg, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
