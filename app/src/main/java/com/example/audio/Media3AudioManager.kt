@@ -3,6 +3,8 @@ package com.example.audio
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -19,6 +21,17 @@ class Media3AudioManager(private val context: Context) {
     private var onStateUpdate: ((isPlaying: Boolean, positionSeconds: Int, durationSeconds: Int) -> Unit)? = null
     private var onTrackChanged: ((trackId: String) -> Unit)? = null
 
+    private val handler = Handler(Looper.getMainLooper())
+    private val progressTicker = object : Runnable {
+        override fun run() {
+            val controller = mediaController
+            if (controller != null && controller.isPlaying) {
+                notifyState()
+                handler.postDelayed(this, 500)
+            }
+        }
+    }
+
     fun initialize(onStateChanged: (isPlaying: Boolean, positionSeconds: Int, durationSeconds: Int) -> Unit) {
         this.onStateUpdate = onStateChanged
         val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -34,6 +47,11 @@ class Media3AudioManager(private val context: Context) {
 
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         notifyState()
+                        if (isPlaying) {
+                            startTicker()
+                        } else {
+                            stopTicker()
+                        }
                     }
 
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -62,18 +80,24 @@ class Media3AudioManager(private val context: Context) {
         this.onTrackChanged = listener
     }
 
-    private fun notifyState() {
+    private fun startTicker() {
+        handler.removeCallbacks(progressTicker)
+        handler.post(progressTicker)
+    }
+
+    private fun stopTicker() {
+        handler.removeCallbacks(progressTicker)
+    }
+
+    fun notifyState() {
         val controller = mediaController ?: return
         val isPlaying = controller.isPlaying
-        val position = (controller.currentPosition / 1000).toInt()
+        val position = (controller.currentPosition / 1000).toInt().coerceAtLeast(0)
         val duration = (controller.duration.coerceAtLeast(0) / 1000).toInt()
         onStateUpdate?.invoke(isPlaying, position, if (duration > 0) duration else 240)
     }
 
-    private fun resolveMediaUri(path: String, title: String): Uri {
-        if (path.startsWith("http://") || path.startsWith("https://")) {
-            return Uri.parse(path)
-        }
+    fun resolveMediaUri(path: String, title: String): Uri {
         if (path.startsWith("content://") || path.startsWith("file://")) {
             return Uri.parse(path)
         }
@@ -81,8 +105,11 @@ class Media3AudioManager(private val context: Context) {
         if (localFile.exists() && localFile.length() > 0) {
             return Uri.fromFile(localFile)
         }
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+            return Uri.parse(path)
+        }
         
-        // Generate or get local cached sample music file
+        // Instant crystal-clear offline high fidelity audio track
         val sampleFile = AudioSampleGenerator.getOrCreateSampleAudio(context, title, path)
         return Uri.fromFile(sampleFile)
     }
@@ -119,23 +146,27 @@ class Media3AudioManager(private val context: Context) {
         controller.setMediaItems(mediaItems, startIndex, 0L)
         controller.prepare()
         controller.play()
+        startTicker()
         notifyState()
     }
 
     fun play() {
         val controller = mediaController ?: return
         controller.play()
+        startTicker()
         notifyState()
     }
 
     fun pause() {
         val controller = mediaController ?: return
         controller.pause()
+        stopTicker()
         notifyState()
     }
 
     fun stop() {
         val controller = mediaController ?: return
+        stopTicker()
         controller.stop()
         controller.clearMediaItems()
         notifyState()
@@ -145,8 +176,10 @@ class Media3AudioManager(private val context: Context) {
         val controller = mediaController ?: return
         if (controller.isPlaying) {
             controller.pause()
+            stopTicker()
         } else {
             controller.play()
+            startTicker()
         }
         notifyState()
     }
@@ -188,7 +221,12 @@ class Media3AudioManager(private val context: Context) {
         return (controller.currentPosition / 1000).toInt()
     }
 
+    fun isPlaying(): Boolean {
+        return mediaController?.isPlaying == true
+    }
+
     fun release() {
+        stopTicker()
         if (controllerFuture != null) {
             MediaController.releaseFuture(controllerFuture!!)
             controllerFuture = null

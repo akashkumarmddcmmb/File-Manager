@@ -12,12 +12,8 @@ import kotlin.math.sin
 object AudioSampleGenerator {
     private const val TAG = "AudioSampleGenerator"
     private const val SAMPLE_RATE = 44100
-    private const val DURATION_SECONDS = 30 // 30-second rich melody loop
+    private const val DURATION_SECONDS = 30
 
-    /**
-     * Returns a local File containing high-quality synthesized music for the given track name/path.
-     * Caches the file in the app cache directory so generation happens only once.
-     */
     fun getOrCreateSampleAudio(context: Context, title: String, path: String): File {
         val cacheDir = File(context.cacheDir, "audio_samples")
         if (!cacheDir.exists()) {
@@ -32,8 +28,8 @@ object AudioSampleGenerator {
         }
 
         try {
-            generateWavFile(sampleFile, styleIndex)
-            Log.d(TAG, "Generated demo music track style #$styleIndex at ${sampleFile.absolutePath}")
+            generateCleanWavFile(sampleFile, styleIndex)
+            Log.d(TAG, "Generated clean demo music track style #$styleIndex at ${sampleFile.absolutePath}")
         } catch (e: Exception) {
             Log.e(TAG, "Error generating sample audio: ${e.message}", e)
         }
@@ -41,21 +37,21 @@ object AudioSampleGenerator {
         return sampleFile
     }
 
-    private fun generateWavFile(outputFile: File, style: Int) {
+    private fun generateCleanWavFile(outputFile: File, style: Int) {
         val totalSamples = SAMPLE_RATE * DURATION_SECONDS
         val pcmData = ByteArray(totalSamples * 2) // 16-bit mono
 
-        // Different musical melodies per style
+        // Clean, pleasant single melody notes per style
         val notes = when (style) {
-            0 -> doubleArrayOf(261.63, 293.66, 329.63, 392.00, 440.00, 523.25) // Kesariya / Indian Pentatonic (C, D, E, G, A, C)
-            1 -> doubleArrayOf(329.63, 392.00, 440.00, 493.88, 587.33, 659.25) // Chaleya / Upbeat Dance (E, G, A, B, D, E)
-            2 -> doubleArrayOf(220.00, 261.63, 293.66, 329.63, 349.23, 440.00) // Tum Hi Ho / Romantic A-Minor (A, C, D, E, F, A)
-            3 -> doubleArrayOf(196.00, 246.94, 293.66, 392.00, 440.00, 493.88) // Acoustic Guitar G-Major Pluck (G, B, D, G, A, B)
-            4 -> doubleArrayOf(174.61, 220.00, 261.63, 329.63, 392.00, 440.00) // Lo-Fi Chill F-Maj7 (F, A, C, E, G, A)
-            else -> doubleArrayOf(261.63, 329.63, 392.00, 523.25, 659.25, 783.99) // Pop / EDM Melody
+            0 -> doubleArrayOf(261.63, 293.66, 329.63, 392.00, 440.00, 523.25) // Raag Bhupali Pentatonic
+            1 -> doubleArrayOf(329.63, 392.00, 440.00, 493.88, 587.33, 659.25) // Upbeat Melodic
+            2 -> doubleArrayOf(220.00, 261.63, 293.66, 329.63, 349.23, 440.00) // Romantic Minor
+            3 -> doubleArrayOf(196.00, 246.94, 293.66, 392.00, 440.00, 493.88) // Acoustic G Major
+            4 -> doubleArrayOf(174.61, 220.00, 261.63, 329.63, 392.00, 440.00) // Soft Lo-Fi
+            else -> doubleArrayOf(261.63, 329.63, 392.00, 523.25, 659.25, 783.99) // Pop Melodic
         }
 
-        val noteDuration = (SAMPLE_RATE * 0.45).toInt() // ~450ms per note
+        val noteDuration = (SAMPLE_RATE * 0.50).toInt() // 500ms per note
         var currentNoteIndex = 0
         var phase = 0.0
 
@@ -65,19 +61,12 @@ object AudioSampleGenerator {
             }
 
             val freq = notes[currentNoteIndex]
-            val bassFreq = freq / 2.0 // Warm bass octave underneath
-
             val timeInNote = (i % noteDuration).toDouble() / SAMPLE_RATE
-            // Attack-Decay-Sustain envelope to sound like piano/guitar/instrument
-            val envelope = kotlin.math.exp(-timeInNote * 2.8)
+            // Smooth piano-like decay envelope
+            val envelope = kotlin.math.exp(-timeInNote * 2.2)
 
-            // Polyphonic harmonics (Fundamental + 2nd Harmonic + Bass + Vibrato)
-            val vibrato = 1.0 + 0.008 * sin(2.0 * PI * 5.0 * i / SAMPLE_RATE)
-            val sampleVal = (
-                sin(phase * vibrato) * 0.6 +
-                sin(phase * 2.0 * vibrato) * 0.25 +
-                sin(2.0 * PI * bassFreq * i / SAMPLE_RATE) * 0.35
-            ) * envelope * 0.75
+            // Crystal-clear single pure tone with gentle second harmonic
+            val sampleVal = (sin(phase) * 0.75 + sin(phase * 2.0) * 0.25) * envelope * 0.7
 
             phase += 2.0 * PI * freq / SAMPLE_RATE
             if (phase > 2.0 * PI) phase -= 2.0 * PI

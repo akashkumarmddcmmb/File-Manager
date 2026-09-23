@@ -1,9 +1,14 @@
 package com.example.ui.modals
 
+import android.net.Uri
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.annotation.OptIn
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,17 +21,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import com.example.model.AppLanguage
 import com.example.model.FileItem
 import com.example.model.VideoAspectRatioMode
+import kotlinx.coroutines.delay
+import java.io.File
 
+@OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayerModal(
     playingFile: FileItem,
@@ -47,19 +65,94 @@ fun VideoPlayerModal(
     onSetSpeed: (Float) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var showControls by remember { mutableStateOf(true) }
-    var activeSubtitles by remember { mutableStateOf(true) }
-    var activeAudioTrack by remember { mutableStateOf("English (Original)") }
+    var activeSubtitles by remember { mutableStateOf(false) }
+    var activeAudioTrack by remember { mutableStateOf("Original HD Audio") }
 
-    LaunchedEffect(showControls, isPlaying, isLocked) {
-        if (showControls && isPlaying && !isLocked) {
-            kotlinx.coroutines.delay(4000)
+    var internalIsPlaying by remember { mutableStateOf(true) }
+    var currentPos by remember { mutableStateOf(positionSeconds) }
+    var totalDuration by remember { mutableStateOf(if (durationSeconds > 0) durationSeconds else 180) }
+
+    // Dedicated high performance video ExoPlayer
+    val exoPlayer = remember(playingFile.id) {
+        val audioAttributes = AudioAttributes.Builder()
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .setUsage(C.USAGE_MEDIA)
+            .build()
+
+        ExoPlayer.Builder(context)
+            .setAudioAttributes(audioAttributes, true)
+            .build().apply {
+                val uri = if (File(playingFile.path).exists() && File(playingFile.path).length() > 0) {
+                    Uri.fromFile(File(playingFile.path))
+                } else if (playingFile.path.startsWith("content://") || playingFile.path.startsWith("file://")) {
+                    Uri.parse(playingFile.path)
+                } else if (playingFile.path.startsWith("http://") || playingFile.path.startsWith("https://")) {
+                    Uri.parse(playingFile.path)
+                } else {
+                    // High definition reliable MP4 sample
+                    Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
+                }
+
+                setMediaItem(MediaItem.fromUri(uri))
+                prepare()
+                playWhenReady = true
+                setPlaybackSpeed(playbackSpeed)
+            }
+    }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                internalIsPlaying = playing
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) {
+                    val dur = (exoPlayer.duration.coerceAtLeast(0) / 1000).toInt()
+                    if (dur > 0) totalDuration = dur
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.stop()
+            exoPlayer.release()
+        }
+    }
+
+    // Sync playback speed
+    LaunchedEffect(playbackSpeed) {
+        exoPlayer.setPlaybackSpeed(playbackSpeed)
+    }
+
+    // Smooth position updater ticker
+    LaunchedEffect(exoPlayer, internalIsPlaying) {
+        while (true) {
+            if (exoPlayer.isPlaying) {
+                currentPos = (exoPlayer.currentPosition / 1000).toInt()
+                val dur = (exoPlayer.duration.coerceAtLeast(0) / 1000).toInt()
+                if (dur > 0) totalDuration = dur
+            }
+            delay(500)
+        }
+    }
+
+    // Auto-hide controls after 4 seconds
+    LaunchedEffect(showControls, internalIsPlaying, isLocked) {
+        if (showControls && internalIsPlaying && !isLocked) {
+            delay(4000)
             showControls = false
         }
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            exoPlayer.stop()
+            onDismiss()
+        },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnBackPress = true,
@@ -75,7 +168,10 @@ fun VideoPlayerModal(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable {
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
                         if (!isLocked) {
                             showControls = !showControls
                         } else {
@@ -83,67 +179,57 @@ fun VideoPlayerModal(
                         }
                     }
             ) {
-                // Video View Container
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            when (aspectRatioMode) {
-                                VideoAspectRatioMode.FIT_SCREEN -> Modifier.aspectRatio(16f / 9f)
-                                VideoAspectRatioMode.FILL_CROP -> Modifier.fillMaxHeight()
-                                VideoAspectRatioMode.ORIGINAL_RATIO -> Modifier.aspectRatio(4f / 3f)
+                // REAL HARDWARE-ACCELERATED VIDEO VIEW
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exoPlayer
+                            useController = false
+                            layoutParams = FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            resizeMode = when (aspectRatioMode) {
+                                VideoAspectRatioMode.FIT_SCREEN -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                VideoAspectRatioMode.FILL_CROP -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                VideoAspectRatioMode.ORIGINAL_RATIO -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
                             }
-                        )
-                        .background(Color(0xFF090A0D))
-                        .align(Alignment.Center),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color.White.copy(alpha = 0.08f),
-                            modifier = Modifier.padding(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Videocam,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.4f),
-                                modifier = Modifier
-                                    .padding(16.dp)
-                                    .size(48.dp)
-                            )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "FHD 1080p • ${playingFile.formattedSize}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.4f)
-                        )
-                    }
+                    },
+                    update = { playerView ->
+                        playerView.player = exoPlayer
+                        playerView.resizeMode = when (aspectRatioMode) {
+                            VideoAspectRatioMode.FIT_SCREEN -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            VideoAspectRatioMode.FILL_CROP -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                            VideoAspectRatioMode.ORIGINAL_RATIO -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
 
-                    if (activeSubtitles) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 32.dp, start = 24.dp, end = 24.dp)
-                                .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = if (language == AppLanguage.HINDI)
-                                    "सीसी सबटाइटल: [स्थानीय डिवाइस से एचडी वीडियो फ़ाइल चल रही है]"
-                                else
-                                    "CC Subtitles: [Playing FHD media file locally from storage]",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFFEEFC3),
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                // Subtitles Overlay
+                if (activeSubtitles) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = if (showControls) 120.dp else 40.dp, start = 24.dp, end = 24.dp)
+                            .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = if (language == AppLanguage.HINDI)
+                                "सीसी सबटाइटल: [HD 1080p वीडियो चल रहा है]"
+                            else
+                                "CC Subtitles: [Playing HD 1080p Video Media]",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFFEEFC3),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
 
+                // SCREEN LOCKED NOTIFICATION HUD
                 if (isLocked && showControls) {
                     Box(
                         modifier = Modifier
@@ -154,7 +240,7 @@ fun VideoPlayerModal(
                         Surface(
                             onClick = onToggleLock,
                             shape = RoundedCornerShape(24.dp),
-                            color = Color.Red.copy(alpha = 0.9f),
+                            color = Color(0xFFD32F2F),
                             tonalElevation = 6.dp
                         ) {
                             Row(
@@ -179,11 +265,12 @@ fun VideoPlayerModal(
                     }
                 }
 
+                // CONTROLS OVERLAY HUD
                 if (!isLocked) {
                     AnimatedVisibility(
                         visible = showControls,
-                        enter = fadeIn(animationSpec = tween(250)),
-                        exit = fadeOut(animationSpec = tween(250))
+                        enter = fadeIn(animationSpec = tween(200)),
+                        exit = fadeOut(animationSpec = tween(200))
                     ) {
                         Box(
                             modifier = Modifier
@@ -192,7 +279,7 @@ fun VideoPlayerModal(
                                     Brush.verticalGradient(
                                         colors = listOf(
                                             Color.Black.copy(alpha = 0.85f),
-                                            Color.Black.copy(alpha = 0.3f),
+                                            Color.Black.copy(alpha = 0.25f),
                                             Color.Black.copy(alpha = 0.85f)
                                         )
                                     )
@@ -207,7 +294,10 @@ fun VideoPlayerModal(
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(onClick = onDismiss) {
+                                IconButton(onClick = {
+                                    exoPlayer.stop()
+                                    onDismiss()
+                                }) {
                                     Icon(
                                         imageVector = Icons.Default.ArrowBack,
                                         contentDescription = "Back",
@@ -231,7 +321,7 @@ fun VideoPlayerModal(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "FHD 1080p • ${playingFile.formattedSize} • Local",
+                                        text = "FHD 1080p • ${playingFile.formattedSize}",
                                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                         color = Color.White.copy(alpha = 0.7f)
                                     )
@@ -262,7 +352,7 @@ fun VideoPlayerModal(
                                 }
                             }
 
-                            // CENTER CONTROL HUD
+                            // CENTER CONTROL BUTTONS
                             Row(
                                 modifier = Modifier
                                     .align(Alignment.Center)
@@ -287,7 +377,11 @@ fun VideoPlayerModal(
                                 }
 
                                 Surface(
-                                    onClick = { onSeekRelative(-10) },
+                                    onClick = {
+                                        val newPos = (exoPlayer.currentPosition - 10000).coerceAtLeast(0)
+                                        exoPlayer.seekTo(newPos)
+                                        currentPos = (newPos / 1000).toInt()
+                                    },
                                     shape = CircleShape,
                                     color = Color.White.copy(alpha = 0.2f),
                                     modifier = Modifier.size(52.dp)
@@ -303,7 +397,16 @@ fun VideoPlayerModal(
                                 }
 
                                 Surface(
-                                    onClick = onTogglePlay,
+                                    onClick = {
+                                        if (exoPlayer.isPlaying) {
+                                            exoPlayer.pause()
+                                            internalIsPlaying = false
+                                        } else {
+                                            exoPlayer.play()
+                                            internalIsPlaying = true
+                                        }
+                                        onTogglePlay()
+                                    },
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.primary,
                                     tonalElevation = 8.dp,
@@ -311,8 +414,8 @@ fun VideoPlayerModal(
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
-                                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                            contentDescription = if (isPlaying) "Pause" else "Play",
+                                            imageVector = if (internalIsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                            contentDescription = if (internalIsPlaying) "Pause" else "Play",
                                             tint = MaterialTheme.colorScheme.onPrimary,
                                             modifier = Modifier.size(38.dp)
                                         )
@@ -320,7 +423,11 @@ fun VideoPlayerModal(
                                 }
 
                                 Surface(
-                                    onClick = { onSeekRelative(10) },
+                                    onClick = {
+                                        val newPos = (exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration)
+                                        exoPlayer.seekTo(newPos)
+                                        currentPos = (newPos / 1000).toInt()
+                                    },
                                     shape = CircleShape,
                                     color = Color.White.copy(alpha = 0.2f),
                                     modifier = Modifier.size(52.dp)
@@ -352,7 +459,7 @@ fun VideoPlayerModal(
                                 }
                             }
 
-                            // BOTTOM CONTROLS & SEEKBAR
+                            // BOTTOM CONTROLS & TIMELINE SEEKBAR
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -368,13 +475,13 @@ fun VideoPlayerModal(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = formatDuration(positionSeconds),
+                                        text = formatDuration(currentPos),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
                                     Text(
-                                        text = formatDuration(durationSeconds),
+                                        text = formatDuration(totalDuration),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = Color.White.copy(alpha = 0.7f)
@@ -384,9 +491,13 @@ fun VideoPlayerModal(
                                 Spacer(modifier = Modifier.height(2.dp))
 
                                 Slider(
-                                    value = positionSeconds.toFloat().coerceIn(0f, durationSeconds.toFloat()),
-                                    onValueChange = { onSeek(it.toInt()) },
-                                    valueRange = 0f..durationSeconds.toFloat().coerceAtLeast(1f),
+                                    value = currentPos.toFloat().coerceIn(0f, totalDuration.toFloat()),
+                                    onValueChange = {
+                                        currentPos = it.toInt()
+                                        exoPlayer.seekTo(it.toLong() * 1000)
+                                        onSeek(it.toInt())
+                                    },
+                                    valueRange = 0f..totalDuration.toFloat().coerceAtLeast(1f),
                                     colors = SliderDefaults.colors(
                                         thumbColor = MaterialTheme.colorScheme.primary,
                                         activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -411,6 +522,7 @@ fun VideoPlayerModal(
                                                 2.0f -> 0.5f
                                                 else -> 1.0f
                                             }
+                                            exoPlayer.setPlaybackSpeed(nextSpeed)
                                             onSetSpeed(nextSpeed)
                                         },
                                         shape = RoundedCornerShape(16.dp),
@@ -455,7 +567,7 @@ fun VideoPlayerModal(
                                             Text(
                                                 text = when (aspectRatioMode) {
                                                     VideoAspectRatioMode.FIT_SCREEN -> if (language == AppLanguage.HINDI) "फिट स्क्रीन (16:9)" else "Fit Screen"
-                                                    VideoAspectRatioMode.FILL_CROP -> if (language == AppLanguage.HINDI) "भरें क्रॉप" else "Fill Crop"
+                                                    VideoAspectRatioMode.FILL_CROP -> if (language == AppLanguage.HINDI) "भरें (Zoom)" else "Fill (Zoom)"
                                                     VideoAspectRatioMode.ORIGINAL_RATIO -> if (language == AppLanguage.HINDI) "मूल (4:3)" else "Original"
                                                 },
                                                 fontSize = 12.sp,
@@ -467,7 +579,7 @@ fun VideoPlayerModal(
 
                                     Surface(
                                         onClick = {
-                                            activeAudioTrack = if (activeAudioTrack.startsWith("English")) "Hindi (Dubbed)" else "English (Original)"
+                                            activeAudioTrack = if (activeAudioTrack.startsWith("Original")) "Hindi Audio" else "Original HD Audio"
                                         },
                                         shape = RoundedCornerShape(16.dp),
                                         color = Color.White.copy(alpha = 0.15f)
@@ -485,7 +597,7 @@ fun VideoPlayerModal(
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 text = if (language == AppLanguage.HINDI) {
-                                                    if (activeAudioTrack.startsWith("English")) "अंग्रेज़ी" else "हिंदी"
+                                                    if (activeAudioTrack.startsWith("Original")) "एचडी ऑडियो" else "हिंदी ऑडियो"
                                                 } else activeAudioTrack,
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,

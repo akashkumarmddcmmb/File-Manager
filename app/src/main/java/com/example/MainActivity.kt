@@ -404,9 +404,10 @@ private fun MainAppContent(
     }
 
     // Media Modals
-    if (activeMusicFile != null) {
+    val currentMusic = uiState.playingAudioFile ?: activeMusicFile
+    if (currentMusic != null && (uiState.showFullAudioPlayer || activeMusicFile != null)) {
         MusicPlayerModal(
-            playingFile = activeMusicFile!!,
+            playingFile = currentMusic,
             isPlaying = uiState.isAudioPlaying,
             positionSeconds = uiState.audioPositionSeconds,
             durationSeconds = uiState.audioDurationSeconds,
@@ -426,13 +427,17 @@ private fun MainAppContent(
             onSetEqualizer = { viewModel.setAudioEqualizerPreset(it) },
             onSetSleepTimer = { viewModel.setAudioSleepTimer(it) },
             onToggleStar = { viewModel.toggleStarred(it) },
-            onDismiss = { activeMusicFile = null }
+            onDismiss = {
+                viewModel.closeFullAudioPlayer()
+                activeMusicFile = null
+            }
         )
     }
 
-    if (activeVideoFile != null) {
+    val currentVideo = uiState.playingVideoFile ?: activeVideoFile
+    if (currentVideo != null && (uiState.showFullVideoPlayer || activeVideoFile != null)) {
         VideoPlayerModal(
-            playingFile = activeVideoFile!!,
+            playingFile = currentVideo,
             isPlaying = uiState.isVideoPlaying,
             positionSeconds = uiState.videoPositionSeconds,
             durationSeconds = uiState.videoDurationSeconds,
@@ -450,6 +455,7 @@ private fun MainAppContent(
             onSetSpeed = { viewModel.setVideoPlaybackSpeed(it) },
             onDismiss = {
                 viewModel.stopVideoPlayback()
+                viewModel.closeVideoPlayer()
                 activeVideoFile = null
             }
         )
