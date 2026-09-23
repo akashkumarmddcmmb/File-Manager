@@ -16,169 +16,134 @@ import java.io.File
 
 object StorageScanner {
 
-    private fun getStandardStorageTier(bytes: Long): Long {
-        val gb = bytes / (1024.0 * 1024.0 * 1024.0)
-        return when {
-            gb <= 4.0 -> 4L * 1024 * 1024 * 1024
-            gb <= 8.0 -> 8L * 1024 * 1024 * 1024
-            gb <= 16.0 -> 16L * 1024 * 1024 * 1024
-            gb <= 32.0 -> 32L * 1024 * 1024 * 1024
-            gb <= 64.0 -> 64L * 1024 * 1024 * 1024
-            gb <= 128.0 -> 128L * 1024 * 1024 * 1024
-            gb <= 256.0 -> 256L * 1024 * 1024 * 1024
-            gb <= 512.0 -> 512L * 1024 * 1024 * 1024
-            gb <= 1024.0 -> 1024L * 1024 * 1024 * 1024
-            else -> bytes
-        }
-    }
-
     fun getRealStorageDevices(context: Context): List<StorageDeviceInfo> {
         val list = mutableListOf<StorageDeviceInfo>()
+        val seenPaths = mutableSetOf<String>()
 
-        // 1. Phone Memory / Internal Storage
+        // 1. Phone Memory / Primary Internal Storage
         try {
             val internalRoot = Environment.getExternalStorageDirectory()
+            val canonicalPath = try { internalRoot.canonicalPath } catch (e: Exception) { internalRoot.absolutePath }
+            seenPaths.add(canonicalPath)
+
             val stat = StatFs(internalRoot.path)
-            val blockSize = stat.blockSizeLong
-            val totalBlocks = stat.blockCountLong
-            val availableBlocks = stat.availableBlocksLong
-            val totalBytes = totalBlocks * blockSize
-            val freeBytes = availableBlocks * blockSize
-
-            val rawTotalGB = totalBytes / (1024.0 * 1024.0 * 1024.0)
-            val displayTotalBytes: Long
-            val displayFreeBytes: Long
-
-            if (rawTotalGB < 16.0) {
-                displayTotalBytes = 128L * 1024 * 1024 * 1024 // 128 GB phone memory
-                val ratio = if (totalBytes > 0) freeBytes.toDouble() / totalBytes else 0.45
-                displayFreeBytes = (displayTotalBytes * ratio).toLong()
-            } else {
-                displayTotalBytes = getStandardStorageTier(totalBytes)
-                displayFreeBytes = freeBytes
-            }
-
-            val displayUsedBytes = displayTotalBytes - displayFreeBytes
-            val displayPct = if (displayTotalBytes > 0) {
-                ((displayUsedBytes * 100) / displayTotalBytes).toInt().coerceIn(1, 99)
-            } else 10
+            val totalBytes = stat.totalBytes
+            val freeBytes = stat.availableBytes
+            val usedBytes = (totalBytes - freeBytes).coerceAtLeast(0L)
+            val usedPct = if (totalBytes > 0) {
+                ((usedBytes * 100) / totalBytes).toInt().coerceIn(0, 100)
+            } else 0
 
             list.add(
                 StorageDeviceInfo(
                     id = "internal",
                     nameEn = "Phone Memory",
                     nameHi = "फोन मेमोरी",
-                    freeBytes = displayFreeBytes,
-                    totalBytes = displayTotalBytes,
+                    freeBytes = freeBytes,
+                    totalBytes = totalBytes,
                     isExternal = false,
-                    badge = "Primary",
-                    usedPercent = displayPct,
+                    badge = "Internal",
+                    usedPercent = usedPct,
                     rootPath = internalRoot.absolutePath
                 )
             )
         } catch (e: Exception) {
-            list.add(
-                StorageDeviceInfo(
-                    id = "internal",
-                    nameEn = "Phone Memory",
-                    nameHi = "फोन मेमोरी",
-                    freeBytes = 41L * 1024 * 1024 * 1024,
-                    totalBytes = 128L * 1024 * 1024 * 1024,
-                    isExternal = false,
-                    badge = "Active",
-                    usedPercent = 67,
-                    rootPath = "/storage/emulated/0"
-                )
-            )
+            e.printStackTrace()
         }
 
-        // 2. Dynamic SD Cards detection under /storage
-        var sdCardCount = 0
+        // 2. Query StorageManager for physical mounted SD Cards / External Storage Volumes
+        val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as? android.os.storage.StorageManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && storageManager != null) {
+            try {
+                val volumes = storageManager.storageVolumes
+                for (volume in volumes) {
+                    val dir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        volume.directory
+                    } else {
+                        null
+                    }
+                    if (dir != null && dir.exists() && dir.canRead()) {
+                        val canonical = try { dir.canonicalPath } catch (e: Exception) { dir.absolutePath }
+                        if (seenPaths.contains(canonical)) continue
+                        seenPaths.add(canonical)
+
+                        try {
+                            val stat = StatFs(dir.path)
+                            val totalBytes = stat.totalBytes
+                            val freeBytes = stat.availableBytes
+                            if (totalBytes > 0) {
+                                val usedBytes = (totalBytes - freeBytes).coerceAtLeast(0L)
+                                val usedPct = ((usedBytes * 100) / totalBytes).toInt().coerceIn(0, 100)
+                                val isRemovable = volume.isRemovable
+                                val desc = volume.getDescription(context) ?: if (isRemovable) "SD Card" else "External Storage"
+
+                                list.add(
+                                    StorageDeviceInfo(
+                                        id = "sdcard_${canonical.hashCode()}",
+                                        nameEn = if (isRemovable) "SD Card ($desc)" else desc,
+                                        nameHi = if (isRemovable) "एसडी कार्ड ($desc)" else desc,
+                                        freeBytes = freeBytes,
+                                        totalBytes = totalBytes,
+                                        isExternal = isRemovable,
+                                        badge = if (isRemovable) "SD Card" else "Storage",
+                                        usedPercent = usedPct,
+                                        rootPath = dir.absolutePath
+                                    )
+                                )
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 3. Scan /storage directory directly for any attached external SD card paths
         try {
             val storageDir = File("/storage")
             if (storageDir.exists() && storageDir.isDirectory) {
                 storageDir.listFiles()?.forEach { file ->
-                    if (file.isDirectory &&
-                        !file.name.equals("self", ignoreCase = true) &&
-                        !file.name.equals("emulated", ignoreCase = true)
-                    ) {
-                        try {
-                            val stat = StatFs(file.path)
-                            val blockSize = stat.blockSizeLong
-                            val totalBlocks = stat.blockCountLong
-                            val availableBlocks = stat.availableBlocksLong
-                            val totalBytes = totalBlocks * blockSize
-                            val freeBytes = availableBlocks * blockSize
+                    if (file.isDirectory && file.canRead()) {
+                        val nameLower = file.name.lowercase()
+                        if (nameLower != "self" && nameLower != "emulated") {
+                            val canonical = try { file.canonicalPath } catch (e: Exception) { file.absolutePath }
+                            if (!seenPaths.contains(canonical)) {
+                                seenPaths.add(canonical)
+                                try {
+                                    val stat = StatFs(file.path)
+                                    val totalBytes = stat.totalBytes
+                                    val freeBytes = stat.availableBytes
+                                    if (totalBytes > 0) {
+                                        val usedBytes = (totalBytes - freeBytes).coerceAtLeast(0L)
+                                        val usedPct = ((usedBytes * 100) / totalBytes).toInt().coerceIn(0, 100)
 
-                            val rawSDTotalGB = totalBytes / (1024.0 * 1024.0 * 1024.0)
-                            val displaySDTotalBytes: Long
-                            val displaySDFreeBytes: Long
-
-                            if (rawSDTotalGB < 8.0) {
-                                displaySDTotalBytes = 64L * 1024 * 1024 * 1024
-                                val ratio = if (totalBytes > 0) freeBytes.toDouble() / totalBytes else 0.75
-                                displaySDFreeBytes = (displaySDTotalBytes * ratio).toLong()
-                            } else {
-                                displaySDTotalBytes = getStandardStorageTier(totalBytes)
-                                displaySDFreeBytes = freeBytes
+                                        list.add(
+                                            StorageDeviceInfo(
+                                                id = "sdcard_${file.name}",
+                                                nameEn = "SD Card (${file.name})",
+                                                nameHi = "एसडी कार्ड (${file.name})",
+                                                freeBytes = freeBytes,
+                                                totalBytes = totalBytes,
+                                                isExternal = true,
+                                                badge = "SD Card",
+                                                usedPercent = usedPct,
+                                                rootPath = file.absolutePath
+                                            )
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
                             }
-
-                            val displaySDUsedBytes = displaySDTotalBytes - displaySDFreeBytes
-                            val displaySDPct = if (displaySDTotalBytes > 0) {
-                                ((displaySDUsedBytes * 100) / displaySDTotalBytes).toInt().coerceIn(1, 99)
-                            } else 10
-
-                            sdCardCount++
-                            list.add(
-                                StorageDeviceInfo(
-                                    id = "sdcard_${file.name}",
-                                    nameEn = "SD Card (${file.name})",
-                                    nameHi = "एसडी कार्ड (${file.name})",
-                                    freeBytes = displaySDFreeBytes,
-                                    totalBytes = displaySDTotalBytes,
-                                    isExternal = true,
-                                    badge = "Ext SD",
-                                    usedPercent = displaySDPct,
-                                    rootPath = file.absolutePath
-                                )
-                            )
-                        } catch (e: Exception) {
-                            sdCardCount++
-                            list.add(
-                                StorageDeviceInfo(
-                                    id = "sdcard_${file.name}",
-                                    nameEn = "SD Card (${file.name})",
-                                    nameHi = "एसडी कार्ड (${file.name})",
-                                    freeBytes = 54 * 1024 * 1024 * 1024L,
-                                    totalBytes = 64 * 1024 * 1024 * 1024L,
-                                    isExternal = true,
-                                    badge = "Ext SD",
-                                    usedPercent = 15,
-                                    rootPath = file.absolutePath
-                                )
-                            )
                         }
                     }
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-        }
-
-        if (sdCardCount == 0) {
-            list.add(
-                StorageDeviceInfo(
-                    id = "sdcard",
-                    nameEn = "SD Card",
-                    nameHi = "एसडी कार्ड",
-                    freeBytes = 58L * 1024 * 1024 * 1024,
-                    totalBytes = 64L * 1024 * 1024 * 1024,
-                    isExternal = true,
-                    badge = "Optional",
-                    usedPercent = 9,
-                    rootPath = "/storage/sdcard"
-                )
-            )
         }
 
         return list

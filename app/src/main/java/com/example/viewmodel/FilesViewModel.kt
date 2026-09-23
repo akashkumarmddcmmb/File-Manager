@@ -108,6 +108,29 @@ class FilesViewModel : ViewModel() {
     private val audioEngine = RealAudioEngine()
     private var media3AudioManager: com.example.audio.Media3AudioManager? = null
 
+    init {
+        audioEngine.setProgressListener { pos, dur, isPlaying ->
+            _uiState.update {
+                it.copy(
+                    audioPositionSeconds = pos,
+                    audioDurationSeconds = if (dur > 0) dur else it.audioDurationSeconds,
+                    isAudioPlaying = isPlaying
+                )
+            }
+        }
+        audioEngine.setCompletionListener {
+            if (_uiState.value.audioRepeatMode == PlaybackRepeatMode.REPEAT_ONE) {
+                _uiState.value.playingAudioFile?.let { playAudio(it, openPlayer = false) }
+            } else {
+                nextAudioTrack(autoPlay = true)
+            }
+        }
+    }
+
+    fun setContext(context: Context) {
+        audioEngine.setContext(context)
+    }
+
     fun setMedia3AudioManager(manager: com.example.audio.Media3AudioManager) {
         this.media3AudioManager = manager
         manager.initialize { isPlaying, position, duration ->
@@ -305,18 +328,20 @@ class FilesViewModel : ViewModel() {
     // ================= MUSIC PLAYER CONTROLS (MP3) =================
     fun playAudio(file: FileItem, openPlayer: Boolean = true) {
         val audioList = getAudioFiles()
-        val detectedDuration = audioEngine.startPlaying(file.name, isVideo = false, startSeconds = 0, filePath = file.path)
+        val detectedDuration = audioEngine.startPlaying(
+            fileName = file.name,
+            filePath = file.path,
+            startSeconds = 0
+        )
         val duration = if (detectedDuration > 0) detectedDuration else if (file.durationSeconds > 0) file.durationSeconds else 240
         audioEngine.setPlaybackSpeed(_uiState.value.audioPlaybackSpeed)
         audioEngine.setEqualizerPreset(_uiState.value.audioEqualizerPreset)
-        audioEngine.setVolume(0.85f)
+        audioEngine.setVolume(0.9f)
         
-        if (media3AudioManager != null) {
-            media3AudioManager?.playPlaylist(
-                playlist = if (audioList.isNotEmpty()) audioList else listOf(file),
-                targetFile = file
-            )
-        }
+        media3AudioManager?.playPlaylist(
+            playlist = if (audioList.isNotEmpty()) audioList else listOf(file),
+            targetFile = file
+        )
 
         _uiState.update {
             it.copy(
@@ -339,26 +364,21 @@ class FilesViewModel : ViewModel() {
             }
         } else {
             val willPlay = !_uiState.value.isAudioPlaying
-            if (media3AudioManager != null) {
-                media3AudioManager?.togglePlayPause()
+            if (willPlay) {
+                audioEngine.resume()
+                media3AudioManager?.play()
             } else {
-                if (willPlay) {
-                    audioEngine.resume()
-                } else {
-                    audioEngine.pause()
-                }
-                _uiState.update { it.copy(isAudioPlaying = willPlay) }
+                audioEngine.pause()
+                media3AudioManager?.pause()
             }
+            _uiState.update { it.copy(isAudioPlaying = willPlay) }
         }
     }
 
     fun seekAudio(positionSeconds: Int) {
         val clamped = positionSeconds.coerceIn(0, _uiState.value.audioDurationSeconds)
-        if (media3AudioManager != null) {
-            media3AudioManager?.seekTo(clamped)
-        } else {
-            audioEngine.seekTo(clamped)
-        }
+        audioEngine.seekTo(clamped)
+        media3AudioManager?.seekTo(clamped)
         _uiState.update {
             it.copy(audioPositionSeconds = clamped)
         }
@@ -370,10 +390,6 @@ class FilesViewModel : ViewModel() {
     }
 
     fun nextAudioTrack(autoPlay: Boolean = true) {
-        if (media3AudioManager != null) {
-            media3AudioManager?.seekToNext()
-            return
-        }
         val audioList = getAudioFiles()
         if (audioList.isEmpty()) return
 
@@ -388,10 +404,6 @@ class FilesViewModel : ViewModel() {
     }
 
     fun prevAudioTrack() {
-        if (media3AudioManager != null) {
-            media3AudioManager?.seekToPrevious()
-            return
-        }
         val audioList = getAudioFiles()
         if (audioList.isEmpty()) return
 
@@ -420,11 +432,8 @@ class FilesViewModel : ViewModel() {
     }
 
     fun setAudioPlaybackSpeed(speed: Float) {
-        if (media3AudioManager != null) {
-            media3AudioManager?.setPlaybackSpeed(speed)
-        } else {
-            audioEngine.setPlaybackSpeed(speed)
-        }
+        audioEngine.setPlaybackSpeed(speed)
+        media3AudioManager?.setPlaybackSpeed(speed)
         _uiState.update { it.copy(audioPlaybackSpeed = speed) }
     }
 
@@ -454,6 +463,7 @@ class FilesViewModel : ViewModel() {
 
     fun stopAudioPlayback() {
         audioEngine.stop()
+        media3AudioManager?.stop()
         _uiState.update {
             it.copy(
                 isAudioPlaying = false,
@@ -473,7 +483,13 @@ class FilesViewModel : ViewModel() {
 
     // ================= VIDEO PLAYER CONTROLS (MP4) =================
     fun playVideo(file: FileItem) {
-        val detectedDuration = audioEngine.startPlaying(file.name, isVideo = true, startSeconds = 0, filePath = file.path)
+        audioEngine.stop()
+        media3AudioManager?.stop()
+        val detectedDuration = audioEngine.startPlaying(
+            fileName = file.name,
+            filePath = file.path,
+            startSeconds = 0
+        )
         val duration = if (detectedDuration > 0) detectedDuration else if (file.durationSeconds > 0) file.durationSeconds else 180
         audioEngine.setPlaybackSpeed(_uiState.value.videoPlaybackSpeed)
         audioEngine.setVolume(_uiState.value.videoVolume)
@@ -484,7 +500,8 @@ class FilesViewModel : ViewModel() {
                 videoPositionSeconds = 0,
                 videoDurationSeconds = duration,
                 showFullVideoPlayer = true,
-                isAudioPlaying = false
+                isAudioPlaying = false,
+                playingAudioFile = null
             )
         }
     }
@@ -497,6 +514,18 @@ class FilesViewModel : ViewModel() {
             audioEngine.pause()
         }
         _uiState.update { it.copy(isVideoPlaying = willPlay) }
+    }
+
+    fun stopVideoPlayback() {
+        audioEngine.stop()
+        _uiState.update {
+            it.copy(
+                isVideoPlaying = false,
+                playingVideoFile = null,
+                showFullVideoPlayer = false,
+                videoPositionSeconds = 0
+            )
+        }
     }
 
     fun seekVideo(positionSeconds: Int) {

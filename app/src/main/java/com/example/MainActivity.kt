@@ -38,11 +38,16 @@ class MainActivity : ComponentActivity() {
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
             val context = LocalContext.current
+            val prefs = remember { context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE) }
+            val initialPassed = remember { prefs.getBoolean("permission_gate_passed", false) }
 
-            var hasPermissionGranted by remember { mutableStateOf(false) }
+            var hasPermissionGranted by remember { mutableStateOf(initialPassed) }
 
             LaunchedEffect(Unit) {
-                viewModel.refreshRealStorage(context)
+                viewModel.setContext(context.applicationContext)
+                val audioManager = com.example.audio.Media3AudioManager(context.applicationContext)
+                viewModel.setMedia3AudioManager(audioManager)
+                viewModel.refreshRealStorage(context.applicationContext)
             }
 
             FilesTheme(darkTheme = true) {
@@ -443,7 +448,10 @@ private fun MainAppContent(
             onToggleLock = { viewModel.toggleVideoLock() },
             onCycleAspectRatio = { viewModel.cycleVideoAspectRatio() },
             onSetSpeed = { viewModel.setVideoPlaybackSpeed(it) },
-            onDismiss = { activeVideoFile = null }
+            onDismiss = {
+                viewModel.stopVideoPlayback()
+                activeVideoFile = null
+            }
         )
     }
 

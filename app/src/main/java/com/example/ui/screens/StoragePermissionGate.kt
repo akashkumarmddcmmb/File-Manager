@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,10 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.model.AppLanguage
 
 @Composable
@@ -31,12 +35,22 @@ fun StoragePermissionGate(
     onPermissionGranted: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    var isInitialGatePassed by remember { mutableStateOf(hasPermission) }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
+    
+    // Check if permission gate was previously passed or runtime permissions are already granted
+    val isAlreadyPassed = remember {
+        hasPermission || prefs.getBoolean("permission_gate_passed", false) || checkRuntimePermissionsGranted(context)
+    }
+
+    var isInitialGatePassed by remember { mutableStateOf(isAlreadyPassed) }
 
     // Launcher for standard initial Android native runtime permissions
     val runtimePermissionsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
+        // Save flag permanently so this screen never appears again on future app opens
+        prefs.edit().putBoolean("permission_gate_passed", true).apply()
         isInitialGatePassed = true
         onPermissionGranted()
     }
@@ -205,6 +219,7 @@ fun StoragePermissionGate(
                     // Green Pill Grant Button ("अनुमति दें")
                     Button(
                         onClick = {
+                            prefs.edit().putBoolean("permission_gate_passed", true).apply()
                             triggerNativeSystemPermissions(runtimePermissionsLauncher) {
                                 isInitialGatePassed = true
                                 onPermissionGranted()
@@ -228,6 +243,19 @@ fun StoragePermissionGate(
                 }
             }
         }
+    }
+}
+
+private fun checkRuntimePermissionsGranted(context: Context): Boolean {
+    val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+    if (prefs.getBoolean("permission_gate_passed", false)) return true
+
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+    } else {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
     }
 }
 
