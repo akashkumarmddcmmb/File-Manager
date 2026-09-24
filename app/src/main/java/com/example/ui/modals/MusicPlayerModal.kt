@@ -607,32 +607,31 @@ fun MusicPlayerModal(
 
 @Composable
 private fun WaveFormVisualizer(isPlaying: Boolean, position: Int) {
-    val barCount = 22
-    val animationStates = List(barCount) {
-        val delay = (100..800).random()
-        val duration = (400..900).random()
-        val infiniteTransition = rememberInfiniteTransition(label = "wave_bar_$it")
-        infiniteTransition.animateFloat(
-            initialValue = 0.15f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = duration, delayMillis = delay, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "wave_height"
-        )
-    }
+    val infiniteTransition = rememberInfiniteTransition(label = "wave_anim")
+    val phase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 6.283185f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase"
+    )
 
     Canvas(
         modifier = Modifier
             .fillMaxWidth(0.85f)
-            .height(40.dp)
+            .height(36.dp)
     ) {
+        val barCount = 24
         val widthBetweenBars = size.width / barCount
-        val barWidth = widthBetweenBars * 0.6f
+        val barWidth = widthBetweenBars * 0.55f
         for (i in 0 until barCount) {
-            val hRatio = if (isPlaying) animationStates[i].value else 0.15f
-            val barHeight = size.height * hRatio
+            val hRatio = if (isPlaying) {
+                val waveVal = kotlin.math.sin(phase + i * 0.45).toFloat()
+                (0.20f + 0.80f * kotlin.math.abs(waveVal))
+            } else 0.15f
+            val barHeight = (size.height * hRatio).coerceIn(4f, size.height)
             val x = i * widthBetweenBars + (widthBetweenBars - barWidth) / 2
             val y = (size.height - barHeight) / 2
             drawRoundRect(

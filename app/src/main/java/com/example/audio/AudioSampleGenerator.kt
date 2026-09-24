@@ -11,25 +11,31 @@ import kotlin.math.sin
 
 object AudioSampleGenerator {
     private const val TAG = "AudioSampleGenerator"
-    private const val SAMPLE_RATE = 44100
-    private const val DURATION_SECONDS = 30
+    private const val SAMPLE_RATE = 22050
+    private const val DURATION_SECONDS = 4
+    private val generatedCache = mutableMapOf<Int, File>()
 
+    @Synchronized
     fun getOrCreateSampleAudio(context: Context, title: String, path: String): File {
+        val styleIndex = Math.floorMod(title.hashCode() + path.hashCode(), 6)
+        generatedCache[styleIndex]?.let {
+            if (it.exists() && it.length() > 44) return it
+        }
+
         val cacheDir = File(context.cacheDir, "audio_samples")
         if (!cacheDir.exists()) {
             cacheDir.mkdirs()
         }
 
-        val styleIndex = Math.floorMod(title.hashCode() + path.hashCode(), 6)
         val sampleFile = File(cacheDir, "track_melody_$styleIndex.wav")
-
         if (sampleFile.exists() && sampleFile.length() > 44) {
+            generatedCache[styleIndex] = sampleFile
             return sampleFile
         }
 
         try {
             generateCleanWavFile(sampleFile, styleIndex)
-            Log.d(TAG, "Generated clean demo music track style #$styleIndex at ${sampleFile.absolutePath}")
+            generatedCache[styleIndex] = sampleFile
         } catch (e: Exception) {
             Log.e(TAG, "Error generating sample audio: ${e.message}", e)
         }

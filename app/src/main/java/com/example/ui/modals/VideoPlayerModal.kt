@@ -6,7 +6,9 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.FrameLayout
+import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
@@ -35,8 +37,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -162,23 +162,30 @@ fun VideoPlayerModal(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    DisposableEffect(Unit) {
+    DisposableEffect(isLandscape) {
         val window = activity?.window
-        val insetsController = if (window != null) WindowCompat.getInsetsController(window, window.decorView) else null
-        insetsController?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        insetsController?.hide(WindowInsetsCompat.Type.systemBars())
+        if (window != null) {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window?.attributes = window?.attributes?.apply {
-                layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
             }
         }
 
         onDispose {
-            insetsController?.show(WindowInsetsCompat.Type.systemBars())
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                window?.attributes = window?.attributes?.apply {
-                    layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+            val w = activity?.window
+            if (w != null) {
+                val insetsController = WindowCompat.getInsetsController(w, w.decorView)
+                insetsController.show(WindowInsetsCompat.Type.systemBars())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    w.attributes = w.attributes.apply {
+                        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                    }
                 }
             }
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -193,28 +200,22 @@ fun VideoPlayerModal(
         }
     }
 
-    Dialog(
-        onDismissRequest = {
-            exoPlayer.stop()
-            onDismiss()
-        },
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false
-        )
+    BackHandler {
+        exoPlayer.stop()
+        onDismiss()
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+        color = Color.Black
     ) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black),
-            color = Color.Black
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(isLocked) {
+                .background(Color.Black)
+                .pointerInput(isLocked) {
                         detectTapGestures(
                             onTap = {
                                 if (!isLocked) {
@@ -388,6 +389,7 @@ fun VideoPlayerModal(
                                     .fillMaxWidth()
                                     .align(Alignment.TopCenter)
                                     .statusBarsPadding()
+                                    .displayCutoutPadding()
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -576,6 +578,7 @@ fun VideoPlayerModal(
                                     .fillMaxWidth()
                                     .align(Alignment.BottomCenter)
                                     .navigationBarsPadding()
+                                    .displayCutoutPadding()
                                     .padding(horizontal = 16.dp, vertical = 12.dp)
                             ) {
                                 Row(
@@ -759,7 +762,6 @@ fun VideoPlayerModal(
             }
         }
     }
-}
 
 private fun formatDuration(totalSecs: Int): String {
     val m = totalSecs / 60

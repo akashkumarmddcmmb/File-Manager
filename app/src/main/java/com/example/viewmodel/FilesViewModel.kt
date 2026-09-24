@@ -167,34 +167,6 @@ class FilesViewModel : ViewModel() {
         viewModelScope.launch {
             while (true) {
                 delay(1000)
-                val s = _uiState.value
-                // Audio ticker
-                if (s.isAudioPlaying && s.playingAudioFile != null) {
-                    val realPos = media3AudioManager?.getPositionSeconds() ?: s.audioPositionSeconds
-                    val step = (1 * s.audioPlaybackSpeed).toInt().coerceAtLeast(1)
-                    val nextPos = if (realPos > 0) realPos else s.audioPositionSeconds + step
-                    if (nextPos >= s.audioDurationSeconds && s.audioDurationSeconds > 0) {
-                        when (s.audioRepeatMode) {
-                            PlaybackRepeatMode.REPEAT_ONE -> {
-                                playAudio(s.playingAudioFile, openPlayer = s.showFullAudioPlayer)
-                            }
-                            PlaybackRepeatMode.REPEAT_ALL -> {
-                                nextAudioTrack(autoPlay = true)
-                            }
-                            PlaybackRepeatMode.OFF -> {
-                                _uiState.update {
-                                    it.copy(
-                                        isAudioPlaying = false,
-                                        audioPositionSeconds = s.audioDurationSeconds
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        _uiState.update { it.copy(audioPositionSeconds = nextPos) }
-                    }
-                }
-
                 // Video ticker
                 val vs = _uiState.value
                 if (vs.isVideoPlaying && vs.playingVideoFile != null) {

@@ -91,10 +91,20 @@ class Media3AudioManager(private val context: Context) {
 
     fun notifyState() {
         val controller = mediaController ?: return
-        val isPlaying = controller.isPlaying
-        val position = (controller.currentPosition / 1000).toInt().coerceAtLeast(0)
-        val duration = (controller.duration.coerceAtLeast(0) / 1000).toInt()
-        onStateUpdate?.invoke(isPlaying, position, if (duration > 0) duration else 240)
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            val isPlaying = controller.isPlaying
+            val position = (controller.currentPosition / 1000).toInt().coerceAtLeast(0)
+            val duration = (controller.duration.coerceAtLeast(0) / 1000).toInt()
+            onStateUpdate?.invoke(isPlaying, position, if (duration > 0) duration else 240)
+        } else {
+            handler.post {
+                val ctrl = mediaController ?: return@post
+                val isPlaying = ctrl.isPlaying
+                val position = (ctrl.currentPosition / 1000).toInt().coerceAtLeast(0)
+                val duration = (ctrl.duration.coerceAtLeast(0) / 1000).toInt()
+                onStateUpdate?.invoke(isPlaying, position, if (duration > 0) duration else 240)
+            }
+        }
     }
 
     fun resolveMediaUri(path: String, title: String): Uri {
@@ -114,40 +124,51 @@ class Media3AudioManager(private val context: Context) {
         return Uri.fromFile(sampleFile)
     }
 
+    private val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+
     fun playPlaylist(playlist: List<com.example.model.FileItem>, targetFile: com.example.model.FileItem) {
         val controller = mediaController ?: return
         if (playlist.isEmpty()) return
 
-        val mediaItems = playlist.map { file ->
-            val title = file.name
-            val artworkUrl = when {
-                title.contains("Kesariya", ignoreCase = true) -> "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=512&auto=format&fit=crop"
-                title.contains("Chaleya", ignoreCase = true) -> "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=512&auto=format&fit=crop"
-                title.contains("Tum Hi Ho", ignoreCase = true) -> "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=512&auto=format&fit=crop"
-                title.contains("Guitar", ignoreCase = true) || title.contains("Acoustic", ignoreCase = true) -> "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=512&auto=format&fit=crop"
-                else -> "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=512&auto=format&fit=crop"
+        executor.execute {
+            try {
+                val mediaItems = playlist.map { file ->
+                    val title = file.name
+                    val artworkUrl = when {
+                        title.contains("Kesariya", ignoreCase = true) -> "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=512&auto=format&fit=crop"
+                        title.contains("Chaleya", ignoreCase = true) -> "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=512&auto=format&fit=crop"
+                        title.contains("Tum Hi Ho", ignoreCase = true) -> "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=512&auto=format&fit=crop"
+                        title.contains("Guitar", ignoreCase = true) || title.contains("Acoustic", ignoreCase = true) -> "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=512&auto=format&fit=crop"
+                        else -> "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=512&auto=format&fit=crop"
+                    }
+                    val metadata = MediaMetadata.Builder()
+                        .setTitle(title.removeSuffix(".${file.extension}"))
+                        .setArtist(file.artist ?: "Local Audio")
+                        .setDisplayTitle(title.removeSuffix(".${file.extension}"))
+                        .setArtworkUri(Uri.parse(artworkUrl))
+                        .build()
+
+                    val audioUri = resolveMediaUri(file.path, file.name)
+                    MediaItem.Builder()
+                        .setMediaId(file.id)
+                        .setUri(audioUri)
+                        .setMediaMetadata(metadata)
+                        .build()
+                }
+
+                val startIndex = playlist.indexOfFirst { it.id == targetFile.id }.coerceAtLeast(0)
+                handler.post {
+                    val ctrl = mediaController ?: return@post
+                    ctrl.setMediaItems(mediaItems, startIndex, 0L)
+                    ctrl.prepare()
+                    ctrl.play()
+                    startTicker()
+                    notifyState()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            val metadata = MediaMetadata.Builder()
-                .setTitle(title.removeSuffix(".${file.extension}"))
-                .setArtist(file.artist ?: "Local Audio")
-                .setDisplayTitle(title.removeSuffix(".${file.extension}"))
-                .setArtworkUri(Uri.parse(artworkUrl))
-                .build()
-
-            val audioUri = resolveMediaUri(file.path, file.name)
-            MediaItem.Builder()
-                .setMediaId(file.id)
-                .setUri(audioUri)
-                .setMediaMetadata(metadata)
-                .build()
         }
-
-        val startIndex = playlist.indexOfFirst { it.id == targetFile.id }.coerceAtLeast(0)
-        controller.setMediaItems(mediaItems, startIndex, 0L)
-        controller.prepare()
-        controller.play()
-        startTicker()
-        notifyState()
     }
 
     fun play() {
