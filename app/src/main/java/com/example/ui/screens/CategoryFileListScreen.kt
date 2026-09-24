@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.model.*
+import com.example.pdf.PdfDocumentManager
+import kotlinx.coroutines.launch
 import java.io.File
 
 data class FolderDisplayItem(
@@ -72,6 +74,7 @@ fun CategoryFileListScreen(
     var sortOption by remember { mutableStateOf("name_asc") }
     var newFolderNameInput by remember { mutableStateOf("") }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // Multi-Selection State (मल्टी-सेलेक्शन मोड)
     val selectedFolderPaths = remember { mutableStateListOf<String>() }
@@ -1329,6 +1332,26 @@ fun CategoryFileListScreen(
                                                     onToggleStar(file.id)
                                                 }
                                             )
+                                            if (file.category == FileCategoryType.DOCUMENTS || file.extension.lowercase() in listOf("pdf", "doc", "docx", "txt")) {
+                                                DropdownMenuItem(
+                                                    text = { Text(if (language == AppLanguage.HINDI) "प्रिंट करें" else "Print") },
+                                                    leadingIcon = { Icon(Icons.Default.Print, contentDescription = null, tint = Color(0xFF0288D1)) },
+                                                    onClick = {
+                                                        showMenu = false
+                                                        scope.launch {
+                                                            try {
+                                                                val pdf = PdfDocumentManager.getOrCreatePdfFile(context, file)
+                                                                val ok = PdfDocumentManager.printPdfDocument(context, pdf, file.name)
+                                                                if (!ok) {
+                                                                    Toast.makeText(context, if (language == AppLanguage.HINDI) "प्रिंटिंग शुरू नहीं हो सकी" else "Unable to start printing", Toast.LENGTH_SHORT).show()
+                                                                }
+                                                            } catch (e: Exception) {
+                                                                Toast.makeText(context, "Print error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                            }
                                             DropdownMenuItem(
                                                 text = { Text(if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर में भेजें" else "Move to Safe folder") },
                                                 leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF00C853)) },

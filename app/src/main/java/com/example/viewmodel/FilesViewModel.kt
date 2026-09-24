@@ -1340,17 +1340,43 @@ fun defaultInitialFiles(): List<FileItem> {
         ),
         FileItem(
             id = "doc_1",
-            name = "Resume_Akash_Kumar.docx",
-            path = "/storage/emulated/0/Documents/Resume_Akash_Kumar.docx",
-            sizeBytes = 1200000L,
+            name = "Resume_Akash_Kumar.pdf",
+            path = "/storage/emulated/0/Documents/Resume_Akash_Kumar.pdf",
+            sizeBytes = 2400000L,
             category = FileCategoryType.DOCUMENTS,
-            extension = "docx"
+            extension = "pdf",
+            isRecent = true
         ),
         FileItem(
             id = "doc_2",
-            name = "Official_Agreement_2024.pdf",
-            path = "/storage/emulated/0/Documents/Official_Agreement_2024.pdf",
-            sizeBytes = 5600000L,
+            name = "Invoice_GST_Sept2026.pdf",
+            path = "/storage/emulated/0/Documents/Invoice_GST_Sept2026.pdf",
+            sizeBytes = 1800000L,
+            category = FileCategoryType.DOCUMENTS,
+            extension = "pdf",
+            isRecent = true
+        ),
+        FileItem(
+            id = "doc_3",
+            name = "Aadhaar_Card_Copy.pdf",
+            path = "/storage/emulated/0/Documents/Aadhaar_Card_Copy.pdf",
+            sizeBytes = 850000L,
+            category = FileCategoryType.DOCUMENTS,
+            extension = "pdf"
+        ),
+        FileItem(
+            id = "doc_4",
+            name = "College_Notes_Unit1.pdf",
+            path = "/storage/emulated/0/Documents/College_Notes_Unit1.pdf",
+            sizeBytes = 4200000L,
+            category = FileCategoryType.DOCUMENTS,
+            extension = "pdf"
+        ),
+        FileItem(
+            id = "doc_5",
+            name = "Annual_Financial_Statement_2026.pdf",
+            path = "/storage/emulated/0/Documents/Annual_Financial_Statement_2026.pdf",
+            sizeBytes = 3800000L,
             category = FileCategoryType.DOCUMENTS,
             extension = "pdf"
         ),
