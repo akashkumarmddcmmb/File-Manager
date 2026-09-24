@@ -587,15 +587,7 @@ fun CategoryFileListScreen(
                                 )
                             }
 
-                            if (storageDevice != null) {
-                                IconButton(onClick = { showCreateFolderDialog = true }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.CreateNewFolder,
-                                        contentDescription = "New Folder",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
+                            // Removed duplicate top bar folder icon (kept in 3-dot menu & bottom FAB)
 
                             IconButton(onClick = { isGridView = !isGridView }) {
                                 Icon(
@@ -650,24 +642,22 @@ fun CategoryFileListScreen(
                                         }
                                     )
 
-                                    if (storageDevice != null) {
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(if (language == AppLanguage.HINDI) "नया फ़ोल्डर बनाएं" else "New folder")
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    imageVector = Icons.Filled.CreateNewFolder,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            },
-                                            onClick = {
-                                                showMenuDropdown = false
-                                                showCreateFolderDialog = true
-                                            }
-                                        )
-                                    }
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(if (language == AppLanguage.HINDI) "नया फ़ोल्डर बनाएं" else "New folder")
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Filled.CreateNewFolder,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        },
+                                        onClick = {
+                                            showMenuDropdown = false
+                                            showCreateFolderDialog = true
+                                        }
+                                    )
 
                                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 

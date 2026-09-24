@@ -666,12 +666,17 @@ private fun MainAppContent(
     }
 
     if (activePdfFile != null) {
+        val pdfList = uiState.files.filter { 
+            it.category == FileCategoryType.DOCUMENTS || it.extension.lowercase() in listOf("pdf", "doc", "docx", "txt") 
+        }
         PdfViewerModal(
             file = activePdfFile!!,
+            allPdfFiles = if (pdfList.isNotEmpty()) pdfList else listOf(activePdfFile!!),
             language = uiState.language,
             onDismiss = { activePdfFile = null },
             onToggleStar = { viewModel.toggleStarred(it) },
-            onDeleteFile = { viewModel.moveToTrash(it) }
+            onDeleteFile = { viewModel.moveToTrash(it) },
+            onNavigateFile = { activePdfFile = it }
         )
     }
 

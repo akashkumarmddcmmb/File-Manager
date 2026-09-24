@@ -286,6 +286,9 @@ object PdfDocumentManager {
         val nameLower = fileItem.name.lowercase()
 
         when {
+            nameLower.contains("statement") || nameLower.contains("bank") || nameLower.contains("axis") || nameLower.contains("passbook") || nameLower.contains("account") -> {
+                drawBankStatementPdf(document, fileItem)
+            }
             nameLower.contains("invoice") || nameLower.contains("gst") || nameLower.contains("bill") -> {
                 drawInvoicePdf(document, fileItem)
             }
@@ -1082,5 +1085,179 @@ object PdfDocumentManager {
 
         FileOutputStream(outputFile).use { out -> document.writeTo(out) }
         document.close()
+    }
+
+    private fun drawBankStatementPdf(document: PdfDocument, fileItem: FileItem) {
+        val totalStatementPages = 3
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        val transactionsPage1 = listOf(
+            arrayOf("02-07-2025", "SAK/CASH DEP/SAK446542768/2536/SELF", "", "10,500.00", "10,500.00"),
+            arrayOf("08-07-2025", "NEFT/TUTR251896076394/MOHAMMED SHAFEEQ/Inward Remittance", "", "4,118.93", "14,618.93"),
+            arrayOf("08-07-2025", "ECOM PUR/Amazon Pay/In/1246624801/080725/17:16/518917206219", "2,850.00", "", "11,768.93"),
+            arrayOf("15-07-2025", "Dr Card Charges GST ISSUE 4691XXXXXXXX4616", "354.00", "", "11,414.93"),
+            arrayOf("16-07-2025", "ECOM PUR/Amazon Pay/In/1246624801/160725/09:22/519709097877", "350.00", "", "11,064.93"),
+            arrayOf("19-07-2025", "NEFT/TUTR252006355794/MOHAMMED SHAFEEQ/Inward Remittance", "", "44,869.60", "55,934.53"),
+            arrayOf("24-07-2025", "ECOM PUR/Amazon Pay/In/1246624801/240725/09:47/520509134818", "1.00", "", "55,933.53"),
+            arrayOf("24-07-2025", "ECOM PUR/Amazon Pay/In/1246624801/240725/09:53/520509503786", "25,000.00", "", "30,933.53"),
+            arrayOf("29-07-2025", "ECOM PUR/Amazon Pay/In/1246624801/290725/12:08/521012777806", "8,000.00", "", "22,933.53"),
+            arrayOf("02-08-2025", "ECOM PUR/Amazon Pay/In/1246624801/020825/17:11/521417042510", "299.00", "", "22,634.53"),
+            arrayOf("03-08-2025", "ATM-CASH/CROSSING/Mahmudabad/030825", "3,500.00", "", "19,134.53"),
+            arrayOf("05-08-2025", "ECOM PUR/Amazon Pay/In/1246624801/050825/10:30/521710758430", "3,000.00", "", "16,134.53"),
+            arrayOf("14-08-2025", "INB/IFT/AKASH KUMAR/TPARTY TRANSFER", "10,000.00", "", "6,134.53"),
+            arrayOf("14-08-2025", "UPI/P2A/712859451894/AKASH KUM/AXIS BANK/PAYMENT/", "", "9,000.00", "15,134.53"),
+            arrayOf("15-08-2025", "ECOM PUR/Amazon Pay/In/1246624801/150825/03:07/522603472095", "299.00", "", "14,835.53"),
+            arrayOf("17-08-2025", "ATM-CASH/CROSSING/Mahmudabad/170825", "2,000.00", "", "12,835.53"),
+            arrayOf("23-08-2025", "ECOM PUR/Amazon Pay/In/1246624801/230825/10:49/523510463591", "2,000.00", "", "10,835.53"),
+            arrayOf("23-08-2025", "ECOM PUR/Amazon Pay/In/1246624801/230825/14:44/523514489874", "4,000.00", "", "6,835.53"),
+            arrayOf("28-08-2025", "ECOM PUR/Amazon Pay/In/1246624801/280825/18:55/524018750656", "349.00", "", "6,486.53"),
+            arrayOf("02-09-2025", "ECOM PUR/Amazon Pay/In/1246624801/020925/08:58/524508733023", "3,300.00", "", "3,186.53")
+        )
+
+        val transactionsPage2 = listOf(
+            arrayOf("05-09-2025", "UPI/P2M/524819034821/Swiggy Delivery/AXIS", "420.00", "", "2,766.53"),
+            arrayOf("08-09-2025", "SALARY CREDIT/TECH SOLUTIONS PVT LTD", "", "45,000.00", "47,766.53"),
+            arrayOf("10-09-2025", "BILLPAY/ELECTRICITY UPPCL RURAL/5253102", "1,850.00", "", "45,916.53"),
+            arrayOf("12-09-2025", "UPI/P2A/9839102451/MOHIT VERMA/PHONEPE", "5,000.00", "", "40,916.53"),
+            arrayOf("15-09-2025", "SIP MUTUAL FUND AUTO DEBIT/UTI NIFTY", "3,000.00", "", "37,916.53"),
+            arrayOf("18-09-2025", "POS/RELIANCE DIGITAL/LUCKNOW STORE", "14,999.00", "", "22,917.53"),
+            arrayOf("22-09-2025", "INTEREST CREDIT FOR Q2 2025-26", "", "482.00", "23,399.53"),
+            arrayOf("25-09-2025", "UPI/P2M/PETROL PUMP HPCL SITAPUR", "1,500.00", "", "21,899.53"),
+            arrayOf("28-09-2025", "ECOM PUR/FLIPKART INTERNET/FKB91823", "2,499.00", "", "19,400.53"),
+            arrayOf("30-09-2025", "RECHARGE JIO PREPAID 84 DAYS 5G", "749.00", "", "18,651.53"),
+            arrayOf("05-10-2025", "SALARY CREDIT/TECH SOLUTIONS PVT LTD", "", "45,000.00", "63,651.53"),
+            arrayOf("08-10-2025", "HOUSE RENT TRANSFER TO LANDLORD", "12,000.00", "", "51,651.53"),
+            arrayOf("12-10-2025", "ECOM PUR/AMAZON FESTIVE SALE/9182", "6,800.00", "", "44,851.53"),
+            arrayOf("15-10-2025", "ATM-CASH/CROSSING/Mahmudabad/151025", "4,000.00", "", "40,851.53"),
+            arrayOf("20-10-2025", "UPI/P2A/FAMILY EXPENSES TRANSFER", "8,000.00", "", "32,851.53")
+        )
+
+        val transactionsPage3 = listOf(
+            arrayOf("01-11-2025", "DIWALI BONUS CREDIT/TECH SOLUTIONS", "", "25,000.00", "57,851.53"),
+            arrayOf("05-11-2025", "SALARY CREDIT/TECH SOLUTIONS PVT LTD", "", "45,000.00", "1,02,851.53"),
+            arrayOf("08-11-2025", "GOLD JEWELLERY PURCHASE/TANISHQ", "38,500.00", "", "64,351.53"),
+            arrayOf("14-11-2025", "UPI/P2M/ZOMATO DINING/LUCKNOW", "1,820.00", "", "62,531.53"),
+            arrayOf("19-11-2025", "VEHICLE INSURANCE RENEWAL HDFC ERGO", "4,200.00", "", "58,331.53"),
+            arrayOf("25-11-2025", "BROADBAND FIBER BILL AIRTEL", "943.00", "", "57,388.53"),
+            arrayOf("05-12-2025", "SALARY CREDIT/TECH SOLUTIONS PVT LTD", "", "45,000.00", "1,02,388.53"),
+            arrayOf("10-12-2025", "FIXED DEPOSIT CREATION 1 YEAR @ 7.2%", "50,000.00", "", "52,388.53"),
+            arrayOf("15-12-2025", "SIP MUTUAL FUND AUTO DEBIT", "3,000.00", "", "49,388.53"),
+            arrayOf("17-12-2025", "CLOSING BALANCE AS ON 17-12-2025", "", "", "49,388.53")
+        )
+
+        for (pageIdx in 0 until totalStatementPages) {
+            val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageIdx + 1).create()
+            val page = document.startPage(pageInfo)
+            val canvas = page.canvas
+
+            // White Background
+            paint.color = android.graphics.Color.WHITE
+            canvas.drawRect(0f, 0f, PAGE_WIDTH.toFloat(), PAGE_HEIGHT.toFloat(), paint)
+
+            // Header Info
+            paint.color = 0xFF1B2430.toInt()
+            paint.textSize = 8.5f
+            paint.typeface = Typeface.DEFAULT
+
+            canvas.drawText("SITAPUR", 25f, 30f, paint)
+            canvas.drawText("UTTAR PRADESH-INDIA", 25f, 42f, paint)
+            canvas.drawText("261203", 25f, 54f, paint)
+
+            canvas.drawText("Registered Mobile No :XXXXXX9120", 25f, 72f, paint)
+            canvas.drawText("Registered Email ID:NiXXXXdc@outlook.com", 25f, 84f, paint)
+            canvas.drawText("Scheme :SB - EASY ACCESS SA (RUSU)", 25f, 96f, paint)
+
+            // Right Header Info
+            paint.textAlign = Paint.Align.RIGHT
+            canvas.drawText("Customer ID :975519194", 570f, 30f, paint)
+            canvas.drawText("IFSC Code :UTIB0002950", 570f, 42f, paint)
+            canvas.drawText("MICR Code :261211999", 570f, 54f, paint)
+            canvas.drawText("Nominee Registered : Y", 570f, 66f, paint)
+            canvas.drawText("Nominee Name :ARVIND KUMAR", 570f, 78f, paint)
+            canvas.drawText("PAN :GIJPD4967E", 570f, 90f, paint)
+            canvas.drawText("CKYC NUMBER :XXXXXXXXXX5945", 570f, 102f, paint)
+            paint.textAlign = Paint.Align.LEFT
+
+            // Statement Title Banner
+            paint.textSize = 10f
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            val title = "Statement of Axis Account No :925010027756770 for the period (From : 18-06-2025 To : 17-12-2025)"
+            canvas.drawText(title, 50f, 120f, paint)
+
+            // Table Header Lines
+            var yPos = 132f
+            paint.color = android.graphics.Color.BLACK
+            paint.strokeWidth = 1f
+            paint.style = Paint.Style.STROKE
+            canvas.drawRect(20f, yPos, 575f, PAGE_HEIGHT - 45f, paint)
+
+            val headerHeight = 22f
+            canvas.drawLine(20f, yPos + headerHeight, 575f, yPos + headerHeight, paint)
+
+            // Column Vertical Lines
+            val colX = floatArrayOf(20f, 80f, 125f, 335f, 410f, 485f, 545f, 575f)
+            for (x in colX) {
+                canvas.drawLine(x, yPos, x, PAGE_HEIGHT - 45f, paint)
+            }
+
+            // Draw Header Text
+            paint.style = Paint.Style.FILL
+            paint.textSize = 8f
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            canvas.drawText("Tran Date", 25f, yPos + 15f, paint)
+            canvas.drawText("Chq No", 85f, yPos + 15f, paint)
+            canvas.drawText("Particulars", 130f, yPos + 15f, paint)
+            canvas.drawText("Debit", 345f, yPos + 15f, paint)
+            canvas.drawText("Credit", 420f, yPos + 15f, paint)
+            canvas.drawText("Balance", 495f, yPos + 15f, paint)
+            canvas.drawText("Init. Br", 548f, yPos + 15f, paint)
+
+            yPos += headerHeight
+
+            val txList = when (pageIdx) {
+                0 -> transactionsPage1
+                1 -> transactionsPage2
+                else -> transactionsPage3
+            }
+
+            paint.textSize = 7.5f
+            paint.typeface = Typeface.DEFAULT
+
+            val rowHeight = 27f
+            for (row in txList) {
+                if (yPos + rowHeight > PAGE_HEIGHT - 50f) break
+
+                // Horizontal Row Line
+                paint.style = Paint.Style.STROKE
+                paint.color = 0xFFB0BEC5.toInt()
+                canvas.drawLine(20f, yPos + rowHeight, 575f, yPos + rowHeight, paint)
+
+                paint.style = Paint.Style.FILL
+                paint.color = android.graphics.Color.BLACK
+
+                canvas.drawText(row[0], 23f, yPos + 16f, paint) // Date
+                val desc = row[1]
+                if (desc.length > 35) {
+                    canvas.drawText(desc.take(35), 130f, yPos + 11f, paint)
+                    canvas.drawText(desc.substring(35).take(35), 130f, yPos + 22f, paint)
+                } else {
+                    canvas.drawText(desc, 130f, yPos + 16f, paint)
+                }
+
+                if (row[2].isNotBlank()) canvas.drawText(row[2], 340f, yPos + 16f, paint) // Debit
+                if (row[3].isNotBlank()) canvas.drawText(row[3], 415f, yPos + 16f, paint) // Credit
+                if (row[4].isNotBlank()) canvas.drawText(row[4], 490f, yPos + 16f, paint) // Balance
+                canvas.drawText("2536", 550f, yPos + 16f, paint) // Branch
+
+                yPos += rowHeight
+            }
+
+            // Bottom Page Number
+            paint.textSize = 9f
+            paint.color = 0xFF546E7A.toInt()
+            canvas.drawText("Page ${pageIdx + 1} of $totalStatementPages • Generated by Axis Bank Ltd.", 20f, PAGE_HEIGHT - 20f, paint)
+
+            document.finishPage(page)
+        }
     }
 }

@@ -6,20 +6,38 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.PI
 import kotlin.math.sin
 
 object AudioSampleGenerator {
     private const val TAG = "AudioSampleGenerator"
     private const val SAMPLE_RATE = 22050
-    private const val DURATION_SECONDS = 4
-    private val generatedCache = mutableMapOf<Int, File>()
+    private const val DURATION_SECONDS = 6
+    private val generatedCache = ConcurrentHashMap<Int, File>()
+    private val precomputedWaveBytes = ConcurrentHashMap<Int, ByteArray>()
 
-    @Synchronized
+    init {
+        // Pre-compute pure audio wave PCM data for all styles in memory for instant delivery
+        try {
+            for (style in 0..5) {
+                precomputedWaveBytes[style] = buildPcmDataForStyle(style)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error pre-computing wave data: ${e.message}")
+        }
+    }
+
+    /**
+     * Instantly returns a valid, high-quality audio file (<1ms)
+     */
     fun getOrCreateSampleAudio(context: Context, title: String, path: String): File {
-        val styleIndex = Math.floorMod(title.hashCode() + path.hashCode(), 6)
-        generatedCache[styleIndex]?.let {
-            if (it.exists() && it.length() > 44) return it
+        val styleIndex = Math.floorMod(title.hashCode() xor path.hashCode(), 6)
+
+        // Fast in-memory cache check
+        val cached = generatedCache[styleIndex]
+        if (cached != null && cached.exists() && cached.length() > 44) {
+            return cached
         }
 
         val cacheDir = File(context.cacheDir, "audio_samples")
@@ -34,7 +52,12 @@ object AudioSampleGenerator {
         }
 
         try {
-            generateCleanWavFile(sampleFile, styleIndex)
+            val pcm = precomputedWaveBytes[styleIndex] ?: buildPcmDataForStyle(styleIndex)
+            FileOutputStream(sampleFile).use { fos ->
+                writeWavHeader(fos, pcm.size, SAMPLE_RATE, 1, 16)
+                fos.write(pcm)
+                fos.flush()
+            }
             generatedCache[styleIndex] = sampleFile
         } catch (e: Exception) {
             Log.e(TAG, "Error generating sample audio: ${e.message}", e)
@@ -43,21 +66,20 @@ object AudioSampleGenerator {
         return sampleFile
     }
 
-    private fun generateCleanWavFile(outputFile: File, style: Int) {
+    private fun buildPcmDataForStyle(style: Int): ByteArray {
         val totalSamples = SAMPLE_RATE * DURATION_SECONDS
-        val pcmData = ByteArray(totalSamples * 2) // 16-bit mono
+        val pcmData = ByteArray(totalSamples * 2)
 
-        // Clean, pleasant single melody notes per style
         val notes = when (style) {
-            0 -> doubleArrayOf(261.63, 293.66, 329.63, 392.00, 440.00, 523.25) // Raag Bhupali Pentatonic
-            1 -> doubleArrayOf(329.63, 392.00, 440.00, 493.88, 587.33, 659.25) // Upbeat Melodic
-            2 -> doubleArrayOf(220.00, 261.63, 293.66, 329.63, 349.23, 440.00) // Romantic Minor
-            3 -> doubleArrayOf(196.00, 246.94, 293.66, 392.00, 440.00, 493.88) // Acoustic G Major
-            4 -> doubleArrayOf(174.61, 220.00, 261.63, 329.63, 392.00, 440.00) // Soft Lo-Fi
-            else -> doubleArrayOf(261.63, 329.63, 392.00, 523.25, 659.25, 783.99) // Pop Melodic
+            0 -> doubleArrayOf(261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 440.00, 392.00) // Raag Bhupali Pentatonic
+            1 -> doubleArrayOf(329.63, 392.00, 440.00, 493.88, 587.33, 659.25, 587.33, 493.88) // Upbeat Melodic
+            2 -> doubleArrayOf(220.00, 261.63, 293.66, 329.63, 349.23, 440.00, 329.63, 261.63) // Romantic Minor
+            3 -> doubleArrayOf(196.00, 246.94, 293.66, 392.00, 440.00, 493.88, 392.00, 293.66) // Acoustic G Major
+            4 -> doubleArrayOf(174.61, 220.00, 261.63, 329.63, 392.00, 440.00, 329.63, 220.00) // Soft Lo-Fi
+            else -> doubleArrayOf(261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 659.25, 523.25) // Pop Melodic
         }
 
-        val noteDuration = (SAMPLE_RATE * 0.50).toInt() // 500ms per note
+        val noteDuration = (SAMPLE_RATE * 0.40).toInt() // 400ms per musical beat
         var currentNoteIndex = 0
         var phase = 0.0
 
@@ -68,11 +90,10 @@ object AudioSampleGenerator {
 
             val freq = notes[currentNoteIndex]
             val timeInNote = (i % noteDuration).toDouble() / SAMPLE_RATE
-            // Smooth piano-like decay envelope
-            val envelope = kotlin.math.exp(-timeInNote * 2.2)
+            val envelope = kotlin.math.exp(-timeInNote * 2.0)
 
-            // Crystal-clear single pure tone with gentle second harmonic
-            val sampleVal = (sin(phase) * 0.75 + sin(phase * 2.0) * 0.25) * envelope * 0.7
+            // Warm acoustic tone with harmonic depth
+            val sampleVal = (sin(phase) * 0.72 + sin(phase * 2.0) * 0.22 + sin(phase * 3.0) * 0.06) * envelope * 0.75
 
             phase += 2.0 * PI * freq / SAMPLE_RATE
             if (phase > 2.0 * PI) phase -= 2.0 * PI
@@ -83,11 +104,7 @@ object AudioSampleGenerator {
             pcmData[byteIndex + 1] = ((sampleShort.toInt() shr 8) and 0xFF).toByte()
         }
 
-        FileOutputStream(outputFile).use { fos ->
-            writeWavHeader(fos, totalSamples * 2, SAMPLE_RATE, 1, 16)
-            fos.write(pcmData)
-            fos.flush()
-        }
+        return pcmData
     }
 
     private fun writeWavHeader(
