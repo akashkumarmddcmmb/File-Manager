@@ -114,7 +114,7 @@ fun BrowseScreen(
                             Box(modifier = Modifier.weight(1f)) {
                                 CategoryGridItem(
                                     category = cat1,
-                                    title = if (language == AppLanguage.HINDI) cat1.titleHi else cat1.titleEn,
+                                    title = language.getCategoryTitle(cat1),
                                     sizeText = getCategoryText(cat1),
                                     onClick = { onCategoryClick(cat1) }
                                 )
@@ -122,7 +122,7 @@ fun BrowseScreen(
                             Box(modifier = Modifier.weight(1f)) {
                                 CategoryGridItem(
                                     category = cat2,
-                                    title = if (language == AppLanguage.HINDI) cat2.titleHi else cat2.titleEn,
+                                    title = language.getCategoryTitle(cat2),
                                     sizeText = getCategoryText(cat2),
                                     onClick = { onCategoryClick(cat2) }
                                 )

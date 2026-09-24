@@ -257,12 +257,11 @@ fun CategoryFileListScreen(
                                 continue
                             }
                             if (child.isDirectory) {
-                                val count = try { child.listFiles()?.size ?: 0 } catch (e: Exception) { 0 }
                                 foldersList.add(
                                     FolderDisplayItem(
                                         name = name,
                                         path = child.absolutePath,
-                                        itemCount = count,
+                                        itemCount = 0,
                                         dateModified = child.lastModified()
                                     )
                                 )

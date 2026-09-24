@@ -22,6 +22,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
 import com.example.model.MainTab
+import com.example.model.getSafeFolderText
+import com.example.model.getSettingsText
+import com.example.model.getTabTitle
+import com.example.model.getTrashText
 
 @Composable
 fun GoogleDrawer(
@@ -192,7 +196,7 @@ fun GoogleDrawerContent(
             // Main Tab Navigation Items
             DrawerNavItem(
                 icon = Icons.Outlined.AutoFixHigh,
-                label = if (language == AppLanguage.HINDI) "साफ़ करें" else "Clean",
+                label = language.getTabTitle(MainTab.CLEAN),
                 selected = currentTab == MainTab.CLEAN,
                 onClick = {
                     onTabSelected(MainTab.CLEAN)
@@ -201,7 +205,7 @@ fun GoogleDrawerContent(
             )
             DrawerNavItem(
                 icon = Icons.Filled.Folder,
-                label = if (language == AppLanguage.HINDI) "ब्राउज़ करें" else "Browse",
+                label = language.getTabTitle(MainTab.BROWSE),
                 selected = currentTab == MainTab.BROWSE,
                 onClick = {
                     onTabSelected(MainTab.BROWSE)
@@ -210,7 +214,7 @@ fun GoogleDrawerContent(
             )
             DrawerNavItem(
                 icon = Icons.Outlined.Share,
-                label = if (language == AppLanguage.HINDI) "आस-पास शेयर करें" else "Nearby Share",
+                label = language.getTabTitle(MainTab.SHARE),
                 selected = currentTab == MainTab.SHARE,
                 onClick = {
                     onTabSelected(MainTab.SHARE)
@@ -231,7 +235,7 @@ fun GoogleDrawerContent(
             DrawerActionItem(
                 icon = Icons.Filled.Shield,
                 iconTint = Color(0xFF00C853),
-                label = if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर" else "Safe Folder",
+                label = language.getSafeFolderText(),
                 onClick = {
                     onCloseDrawer()
                     onOpenSafeFolder()
@@ -241,7 +245,7 @@ fun GoogleDrawerContent(
             DrawerActionItem(
                 icon = Icons.Filled.Delete,
                 iconTint = Color(0xFF00C853),
-                label = if (language == AppLanguage.HINDI) "ट्रैश (कचरा)" else "Trash",
+                label = language.getTrashText(),
                 onClick = {
                     onCloseDrawer()
                     onOpenTrash()

@@ -112,8 +112,9 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
                 }
 
                 if (!sourceSet) {
-                    // Fallback to sample URL
-                    setDataSource("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3")
+                    val sampleFile = AudioSampleGenerator.getOrCreateSampleAudio(context ?: defaultContext!!, fileName, filePath)
+                    setDataSource(sampleFile.absolutePath)
+                    sourceSet = true
                 }
 
                 isLooping = false

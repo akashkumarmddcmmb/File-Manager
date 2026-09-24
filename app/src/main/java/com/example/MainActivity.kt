@@ -55,19 +55,10 @@ class MainActivity : ComponentActivity() {
             }
 
             FilesTheme(darkTheme = true) {
-                StoragePermissionGate(
-                    hasPermission = hasPermissionGranted,
-                    language = uiState.language,
-                    onPermissionGranted = {
-                        hasPermissionGranted = true
-                        viewModel.refreshRealStorage(context)
-                    }
-                ) {
-                    MainAppContent(
-                        uiState = uiState,
-                        viewModel = viewModel
-                    )
-                }
+                MainAppContent(
+                    uiState = uiState,
+                    viewModel = viewModel
+                )
             }
         }
     }
@@ -78,9 +69,13 @@ private fun MainAppContent(
     uiState: FilesUiState,
     viewModel: FilesViewModel
 ) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE) }
+    val initialPassed = remember { prefs.getBoolean("permission_gate_passed", false) }
+    var hasPermissionGranted by remember { mutableStateOf(initialPassed) }
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
 
     var currentScreen by remember { mutableStateOf(AppNavScreen.MAIN_TABS) }
     val screenHistory = remember { mutableStateListOf(AppNavScreen.MAIN_TABS) }
@@ -97,6 +92,26 @@ private fun MainAppContent(
     var showPinChangeModal by remember { mutableStateOf(false) }
     var showLegalPoliciesModal by remember { mutableStateOf(false) }
     var legalPolicyType by remember { mutableStateOf(PolicyType.PRIVACY) }
+
+    StoragePermissionGate(
+        hasPermission = hasPermissionGranted,
+        language = uiState.language,
+        onSelectLanguage = { viewModel.setLanguage(it) },
+        onOpenSafeFolder = {
+            hasPermissionGranted = true
+            showSafeFolderModal = true
+            viewModel.refreshRealStorage(context)
+        },
+        onOpenClean = {
+            hasPermissionGranted = true
+            viewModel.setTab(MainTab.CLEAN)
+            viewModel.refreshRealStorage(context)
+        },
+        onPermissionGranted = {
+            hasPermissionGranted = true
+            viewModel.refreshRealStorage(context)
+        }
+    ) {
 
     // Media Viewer Modals
     var activeMusicFile by remember { mutableStateOf<FileItem?>(null) }
@@ -768,11 +783,12 @@ private fun MainAppContent(
             itemsToProcess = uiState.pendingTransferItems,
             storageDevices = uiState.storageDevices,
             language = uiState.language,
-            onConfirmDestination = { destPath ->
+            onConfirmDestination = { destPath, targetMbps ->
                 viewModel.executeTransfer(
                     items = uiState.pendingTransferItems,
                     destinationPath = destPath,
-                    action = uiState.pendingTransferAction!!
+                    action = uiState.pendingTransferAction!!,
+                    targetSpeedMbps = targetMbps
                 )
             },
             onDismiss = { viewModel.closeDestinationPicker() }
@@ -784,11 +800,17 @@ private fun MainAppContent(
         com.example.ui.modals.FileTransferProgressModal(
             progressState = uiState.transferProgressState,
             language = uiState.language,
-            onSpeedMultiplierChange = { multiplier ->
-                viewModel.setTransferSpeedMultiplier(multiplier)
+            onSpeedMbpsChange = { mbps ->
+                viewModel.setTransferTargetMbps(mbps)
+            },
+            onPauseToggle = {
+                viewModel.toggleTransferPause()
             },
             onCancelTransfer = {
                 viewModel.cancelTransfer()
+            },
+            onDismissDone = {
+                viewModel.dismissTransferDoneModal()
             }
         )
     }
@@ -800,6 +822,7 @@ private fun MainAppContent(
             android.widget.Toast.makeText(context, toastMsg, android.widget.Toast.LENGTH_LONG).show()
             viewModel.clearTransferToast()
         }
+    }
     }
 }
 

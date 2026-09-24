@@ -18,14 +18,25 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         
-        // Build ExoPlayer with audio attributes for background media playback
+        // Build ExoPlayer with ultra-fast LoadControl for instant playback (<50ms buffer)
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
             .build()
 
+        val fastLoadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                1000,  // minBufferMs
+                5000,  // maxBufferMs
+                50,    // bufferForPlaybackMs - start playing almost instantly!
+                100    // bufferForPlaybackAfterRebufferMs
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
         player = ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, true)
+            .setLoadControl(fastLoadControl)
             .setHandleAudioBecomingNoisy(true)
             .build()
 

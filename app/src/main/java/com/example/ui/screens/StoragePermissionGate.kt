@@ -7,7 +7,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,11 +35,15 @@ import com.example.model.AppLanguage
 fun StoragePermissionGate(
     hasPermission: Boolean,
     language: AppLanguage,
+    onSelectLanguage: (AppLanguage) -> Unit = {},
+    onOpenSafeFolder: () -> Unit = {},
+    onOpenClean: () -> Unit = {},
     onPermissionGranted: () -> Unit,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
     
     // Check if permission gate was previously passed or runtime permissions are already granted
     val isAlreadyPassed = remember {
@@ -130,83 +137,177 @@ fun StoragePermissionGate(
                         // Feature Highlights Card
                         Card(
                             shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1F23)),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF18191C)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
-                                modifier = Modifier.padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(20.dp)
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 // Feature 1: Storage Scan
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
+                                Surface(
+                                    onClick = {
+                                        prefs.edit().putBoolean("permission_gate_passed", true).apply()
+                                        triggerNativeSystemPermissions(runtimePermissionsLauncher) {
+                                            isInitialGatePassed = true
+                                            onOpenClean()
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFF232429),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Box(
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier
-                                            .size(44.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF1B382B)),
-                                        contentAlignment = Alignment.Center
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp)
                                     ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF1B382B)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.FormatListBulleted,
+                                                contentDescription = null,
+                                                tint = Color(0xFF00C853),
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (language == AppLanguage.HINDI) "स्टोरेज स्कैन" else "Storage Scan",
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp
+                                                ),
+                                                color = Color.White
+                                            )
+                                            Text(
+                                                text = if (language == AppLanguage.HINDI) "जंक फाइल्स ढूंढें और स्पेस खाली करें" else "Find junk files and free up space",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                                color = Color(0xFF9E9E9E)
+                                            )
+                                        }
                                         Icon(
-                                            imageVector = Icons.Default.FormatListBulleted,
+                                            imageVector = Icons.Default.ChevronRight,
                                             contentDescription = null,
-                                            tint = Color(0xFF00C853),
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
-                                        Text(
-                                            text = if (language == AppLanguage.HINDI) "स्टोरेज स्कैन" else "Storage Scan",
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 16.sp
-                                            ),
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = if (language == AppLanguage.HINDI) "जंक फाइल्स ढूंढें और 1.8GB तक स्पेस खाली करें" else "Find junk files and free up space",
-                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                            color = Color(0xFF9E9E9E)
+                                            tint = Color(0xFF757575),
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                 }
 
                                 // Feature 2: Safe Folder
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
+                                Surface(
+                                    onClick = {
+                                        prefs.edit().putBoolean("permission_gate_passed", true).apply()
+                                        triggerNativeSystemPermissions(runtimePermissionsLauncher) {
+                                            isInitialGatePassed = true
+                                            onOpenSafeFolder()
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFF232429),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Box(
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier
-                                            .size(44.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF1B382B)),
-                                        contentAlignment = Alignment.Center
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp)
                                     ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF1B382B)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Shield,
+                                                contentDescription = null,
+                                                tint = Color(0xFF00C853),
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर" else "Safe Folder",
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp
+                                                ),
+                                                color = Color.White
+                                            )
+                                            Text(
+                                                text = if (language == AppLanguage.HINDI) "निजी फाइलों को PIN से सुरक्षित करें" else "Protect private files with PIN encryption",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                                color = Color(0xFF9E9E9E)
+                                            )
+                                        }
                                         Icon(
-                                            imageVector = Icons.Default.Shield,
+                                            imageVector = Icons.Default.ChevronRight,
                                             contentDescription = null,
-                                            tint = Color(0xFF00C853),
-                                            modifier = Modifier.size(22.dp)
+                                            tint = Color(0xFF757575),
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
-                                        Text(
-                                            text = if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर" else "Safe Folder",
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 16.sp
-                                            ),
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = if (language == AppLanguage.HINDI) "अपनी निजी फाइलों को 256-बिट पिन से सुरक्षित करें" else "Protect private files with PIN encryption",
-                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                            color = Color(0xFF9E9E9E)
+                                }
+
+                                // Feature 3: App Language (भाषा बदलें)
+                                Surface(
+                                    onClick = { showLanguageDialog = true },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFF232429),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF1B382B)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Language,
+                                                contentDescription = null,
+                                                tint = Color(0xFF00C853),
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (language == AppLanguage.HINDI) "ऐप भाषा (Language)" else "App Language",
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp
+                                                ),
+                                                color = Color.White
+                                            )
+                                            Text(
+                                                text = "${language.nativeName} (${language.englishName})",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold),
+                                                color = Color(0xFF00C853)
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.ChevronRight,
+                                            contentDescription = null,
+                                            tint = Color(0xFF757575),
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                 }
@@ -242,6 +343,84 @@ fun StoragePermissionGate(
                     }
                 }
             }
+        }
+
+        if (showLanguageDialog) {
+            AlertDialog(
+                onDismissRequest = { showLanguageDialog = false },
+                icon = { Icon(Icons.Default.Language, contentDescription = null, tint = Color(0xFF00C853)) },
+                title = {
+                    Text(
+                        text = if (language == AppLanguage.HINDI) "ऐप भाषा चुनें / Choose Language" else "Select App Language",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                },
+                text = {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 540.dp)
+                    ) {
+                        items(AppLanguage.values().toList()) { lang ->
+                            val isSelected = language == lang
+                            Surface(
+                                onClick = {
+                                    onSelectLanguage(lang)
+                                    showLanguageDialog = false
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) Color(0xFF1B382B) else Color(0xFF2A2B30),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column {
+                                            Text(
+                                                text = lang.nativeName,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = if (isSelected) Color(0xFF00C853) else Color.White
+                                            )
+                                            Text(
+                                                text = lang.englishName,
+                                                fontSize = 12.sp,
+                                                color = if (isSelected) Color(0xFFA7F3D0) else Color(0xFF9E9E9E)
+                                            )
+                                        }
+                                    }
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = {
+                                            onSelectLanguage(lang)
+                                            showLanguageDialog = false
+                                        },
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = Color(0xFF00C853),
+                                            unselectedColor = Color(0xFF9E9E9E)
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showLanguageDialog = false }) {
+                        Text(if (language == AppLanguage.HINDI) "बंद करें" else "Close", color = Color(0xFF00C853))
+                    }
+                },
+                containerColor = Color(0xFF1E1F23),
+                titleContentColor = Color.White,
+                textContentColor = Color.White
+            )
         }
     }
 }

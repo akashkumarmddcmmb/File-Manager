@@ -32,9 +32,21 @@ enum class AccentColorType(
     CUSTOM("Custom", "कस्टम", Color(0xFF10B981), Color(0xFF133829), Color(0xFFA7F3D0))
 }
 
-enum class AppLanguage {
-    HINDI,
-    ENGLISH
+enum class AppLanguage(
+    val nativeName: String,
+    val englishName: String
+) {
+    HINDI("हिंदी", "Hindi"),
+    ENGLISH("English", "English"),
+    SPANISH("Español", "Spanish"),
+    MARATHI("मराठी", "Marathi"),
+    BENGALI("বাংলা", "Bengali"),
+    TAMIL("தமிழ்", "Tamil"),
+    TELUGU("తెలుగు", "Telugu"),
+    GUJARATI("ગુજરાતી", "Gujarati"),
+    PUNJABI("ਪੰਜਾਬੀ", "Punjabi"),
+    FRENCH("Français", "French"),
+    ARABIC("العربية", "Arabic")
 }
 
 enum class FileCategoryType(
@@ -252,7 +264,11 @@ data class TransferProgressState(
     val speedBytesPerSec: Long = 0L,
     val speedFormatted: String = "0.0 MB/s",
     val speedMultiplier: Int = 1, // 1x, 2x, 5x, 10x Turbo
+    val targetMbps: Int = 35,
+    val sourceLocationName: String = "Internal Storage",
+    val destinationLocationName: String = "SD Card",
     val estimatedTimeRemainingSec: Long = 0L,
-    val isCancelled: Boolean = false
+    val isCancelled: Boolean = false,
+    val isPaused: Boolean = false
 )
 

@@ -163,18 +163,10 @@ class Media3AudioManager(private val context: Context) {
 
     private fun createMediaItem(file: FileItem): MediaItem {
         val title = file.name
-        val artworkUrl = when {
-            title.contains("Kesariya", ignoreCase = true) -> "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=512&auto=format&fit=crop"
-            title.contains("Chaleya", ignoreCase = true) -> "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=512&auto=format&fit=crop"
-            title.contains("Tum Hi Ho", ignoreCase = true) -> "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=512&auto=format&fit=crop"
-            title.contains("Guitar", ignoreCase = true) || title.contains("Acoustic", ignoreCase = true) -> "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=512&auto=format&fit=crop"
-            else -> "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=512&auto=format&fit=crop"
-        }
         val metadata = MediaMetadata.Builder()
             .setTitle(title.removeSuffix(".${file.extension}"))
             .setArtist(file.artist ?: "Local Audio")
             .setDisplayTitle(title.removeSuffix(".${file.extension}"))
-            .setArtworkUri(Uri.parse(artworkUrl))
             .build()
 
         val audioUri = resolveMediaUri(file.path, file.name)

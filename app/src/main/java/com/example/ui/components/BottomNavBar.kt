@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
 import com.example.model.MainTab
 
+import com.example.model.getTabTitle
+
 @Composable
 fun BottomNavBar(
     selectedTab: MainTab,
@@ -44,21 +46,21 @@ fun BottomNavBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             NavBarItem(
-                label = if (language == AppLanguage.HINDI) "साफ़ करें" else "Clean",
+                label = language.getTabTitle(MainTab.CLEAN),
                 selected = selectedTab == MainTab.CLEAN,
                 activeIcon = Icons.Filled.AutoFixHigh,
                 inactiveIcon = Icons.Outlined.AutoFixHigh,
                 onClick = { onTabSelected(MainTab.CLEAN) }
             )
             NavBarItem(
-                label = if (language == AppLanguage.HINDI) "ब्राउज़ करें" else "Browse",
+                label = language.getTabTitle(MainTab.BROWSE),
                 selected = selectedTab == MainTab.BROWSE,
                 activeIcon = Icons.Filled.Folder,
                 inactiveIcon = Icons.Outlined.Folder,
                 onClick = { onTabSelected(MainTab.BROWSE) }
             )
             NavBarItem(
-                label = if (language == AppLanguage.HINDI) "शेयर करें" else "Share",
+                label = language.getTabTitle(MainTab.SHARE),
                 selected = selectedTab == MainTab.SHARE,
                 activeIcon = Icons.Filled.Share,
                 inactiveIcon = Icons.Outlined.Share,

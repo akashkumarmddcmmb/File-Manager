@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 data class FilesUiState(
     val currentTab: MainTab = MainTab.BROWSE,
-    val language: AppLanguage = AppLanguage.HINDI,
+    val language: AppLanguage = AppLanguage.ENGLISH,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accentColor: AccentColorType = AccentColorType.SYSTEM_DYNAMIC,
     val showHiddenFiles: Boolean = false,
@@ -320,7 +320,8 @@ class FilesViewModel : ViewModel() {
                 showFullAudioPlayer = openPlayer,
                 isVideoPlaying = false,
                 playingVideoFile = null,
-                showFullVideoPlayer = false
+                showFullVideoPlayer = false,
+                activeFileDetail = null
             )
         }
     }
@@ -873,9 +874,42 @@ class FilesViewModel : ViewModel() {
 
     fun setTransferSpeedMultiplier(multiplier: Int) {
         currentTransferSpeedMultiplier = multiplier.coerceIn(1, 10)
+        val mbps = multiplier * 25
         _uiState.update {
             it.copy(
-                transferProgressState = it.transferProgressState.copy(speedMultiplier = currentTransferSpeedMultiplier)
+                transferProgressState = it.transferProgressState.copy(
+                    speedMultiplier = currentTransferSpeedMultiplier,
+                    targetMbps = mbps
+                )
+            )
+        }
+    }
+
+    fun setTransferTargetMbps(targetMbps: Int) {
+        val safeMbps = targetMbps.coerceIn(5, 500)
+        val mult = (safeMbps / 25).coerceIn(1, 10)
+        currentTransferSpeedMultiplier = mult
+        _uiState.update {
+            it.copy(
+                transferProgressState = it.transferProgressState.copy(
+                    targetMbps = safeMbps,
+                    speedMultiplier = mult
+                )
+            )
+        }
+    }
+
+    fun toggleTransferPause() {
+        _uiState.update {
+            val curr = it.transferProgressState
+            it.copy(transferProgressState = curr.copy(isPaused = !curr.isPaused))
+        }
+    }
+
+    fun dismissTransferDoneModal() {
+        _uiState.update {
+            it.copy(
+                transferProgressState = TransferProgressState(isTransferring = false)
             )
         }
     }
@@ -893,11 +927,17 @@ class FilesViewModel : ViewModel() {
     fun executeTransfer(
         items: List<ClipboardItem>,
         destinationPath: String,
-        action: ClipboardOperationType
+        action: ClipboardOperationType,
+        targetSpeedMbps: Int = 35
     ) {
         activeTransferJob?.cancel()
         isTransferCancelledState = false
-        currentTransferSpeedMultiplier = 1
+
+        val mult = (targetSpeedMbps / 25).coerceIn(1, 10)
+        currentTransferSpeedMultiplier = mult
+
+        val sourceName = if (items.firstOrNull()?.path?.contains("emulated") == true) "Internal Storage" else "SD Card"
+        val destName = if (destinationPath.contains("emulated") || destinationPath.startsWith("/storage/emulated/0")) "Internal Storage" else "SD Card"
 
         _uiState.update {
             it.copy(
@@ -907,7 +947,10 @@ class FilesViewModel : ViewModel() {
                     action = action,
                     totalFilesCount = items.size,
                     currentFileIndex = 1,
-                    speedMultiplier = 1
+                    speedMultiplier = mult,
+                    targetMbps = targetSpeedMbps,
+                    sourceLocationName = sourceName,
+                    destinationLocationName = destName
                 )
             )
         }
@@ -921,7 +964,15 @@ class FilesViewModel : ViewModel() {
                 getSpeedMultiplier = { currentTransferSpeedMultiplier },
                 checkIsCancelled = { isTransferCancelledState },
                 onProgressUpdate = { progressState ->
-                    _uiState.update { it.copy(transferProgressState = progressState) }
+                    _uiState.update {
+                        it.copy(
+                            transferProgressState = progressState.copy(
+                                targetMbps = targetSpeedMbps,
+                                sourceLocationName = sourceName,
+                                destinationLocationName = destName
+                            )
+                        )
+                    }
                 }
             )
 
@@ -932,7 +983,13 @@ class FilesViewModel : ViewModel() {
                     pendingTransferAction = null,
                     pendingTransferItems = emptyList(),
                     clipboardState = if (action == ClipboardOperationType.MOVE) ClipboardState(isActive = false) else it.clipboardState,
-                    transferProgressState = TransferProgressState(isTransferring = false),
+                    transferProgressState = it.transferProgressState.copy(
+                        isTransferring = true,
+                        progress = 1.0f,
+                        bytesTransferred = it.transferProgressState.totalBytesToTransfer.coerceAtLeast(1024L),
+                        speedFormatted = "0.0 MB/s",
+                        estimatedTimeRemainingSec = 0L
+                    ),
                     fileTransferSuccessToast = if (it.language == AppLanguage.HINDI) result.messageHi else result.messageEn
                 )
             }
@@ -1196,7 +1253,7 @@ class FilesViewModel : ViewModel() {
     }
 
     fun refreshRealStorage(context: Context) {
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val realDevices = StorageScanner.getRealStorageDevices(context)
             val realFiles = StorageScanner.scanRealStorageFiles(context)
             _uiState.update { state ->
