@@ -5,11 +5,15 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -46,7 +50,7 @@ data class FolderDisplayItem(
     val dateModified: Long = System.currentTimeMillis()
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun CategoryFileListScreen(
     category: FileCategoryType?,
@@ -58,13 +62,43 @@ fun CategoryFileListScreen(
     onToggleStar: (String) -> Unit,
     onMoveToTrash: (String) -> Unit,
     onMoveToSafeFolder: (String) -> Unit,
-    onCompressFiles: (List<FileItem>) -> Unit = {}
+    onCompressFiles: (List<FileItem>) -> Unit = {},
+    isOverlayActive: Boolean = false
 ) {
     var isGridView by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
+    var showMenuDropdown by remember { mutableStateOf(false) }
+    var sortOption by remember { mutableStateOf("name_asc") }
     var newFolderNameInput by remember { mutableStateOf("") }
     val context = LocalContext.current
+
+    // Multi-Selection State (मल्टी-सेलेक्शन मोड)
+    val selectedFolderPaths = remember { mutableStateListOf<String>() }
+    val selectedFileIds = remember { mutableStateListOf<String>() }
+    val isSelectionMode by remember { derivedStateOf { selectedFolderPaths.isNotEmpty() || selectedFileIds.isNotEmpty() } }
+    val totalSelectedCount by remember { derivedStateOf { selectedFolderPaths.size + selectedFileIds.size } }
+
+    val toggleFolderSelection: (String) -> Unit = { path ->
+        if (selectedFolderPaths.contains(path)) {
+            selectedFolderPaths.remove(path)
+        } else {
+            selectedFolderPaths.add(path)
+        }
+    }
+
+    val toggleFileSelection: (String) -> Unit = { id ->
+        if (selectedFileIds.contains(id)) {
+            selectedFileIds.remove(id)
+        } else {
+            selectedFileIds.add(id)
+        }
+    }
+
+    val clearSelection: () -> Unit = {
+        selectedFolderPaths.clear()
+        selectedFileIds.clear()
+    }
 
     var isFullStorageGranted by remember {
         mutableStateOf(
@@ -121,13 +155,19 @@ fun CategoryFileListScreen(
 
     var currentFolderPath by remember(storageDevice) { mutableStateOf(rootPath) }
 
-    BackHandler(enabled = true) {
+    val performScreenBack: () -> Unit = {
         when {
-            searchQuery.isNotBlank() -> {
-                searchQuery = ""
+            isSelectionMode -> {
+                clearSelection()
+            }
+            showMenuDropdown -> {
+                showMenuDropdown = false
             }
             showCreateFolderDialog -> {
                 showCreateFolderDialog = false
+            }
+            searchQuery.isNotBlank() -> {
+                searchQuery = ""
             }
             storageDevice != null && currentFolderPath.isNotBlank() && currentFolderPath != rootPath -> {
                 val parent = File(currentFolderPath).parent
@@ -141,6 +181,10 @@ fun CategoryFileListScreen(
                 onBack()
             }
         }
+    }
+
+    BackHandler(enabled = !isOverlayActive) {
+        performScreenBack()
     }
 
     val customFolders = remember { mutableStateListOf<FolderDisplayItem>() }
@@ -310,8 +354,28 @@ fun CategoryFileListScreen(
                 }
             }
 
-            foldersList.sortBy { it.name.lowercase() }
-            filesList.sortBy { it.name.lowercase() }
+            when (sortOption) {
+                "name_asc" -> {
+                    foldersList.sortBy { it.name.lowercase() }
+                    filesList.sortBy { it.name.lowercase() }
+                }
+                "name_desc" -> {
+                    foldersList.sortByDescending { it.name.lowercase() }
+                    filesList.sortByDescending { it.name.lowercase() }
+                }
+                "date_desc" -> {
+                    foldersList.sortByDescending { it.dateModified }
+                    filesList.sortByDescending { it.dateModified }
+                }
+                "size_desc" -> {
+                    foldersList.sortBy { it.name.lowercase() }
+                    filesList.sortByDescending { it.sizeBytes }
+                }
+                else -> {
+                    foldersList.sortBy { it.name.lowercase() }
+                    filesList.sortBy { it.name.lowercase() }
+                }
+            }
             foldersList to filesList
         } else {
             emptyList<FolderDisplayItem>() to emptyList<FileItem>()
@@ -321,6 +385,7 @@ fun CategoryFileListScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             if (storageDevice != null) {
                 FloatingActionButton(
@@ -344,11 +409,17 @@ fun CategoryFileListScreen(
             } else if (displayedFiles.isNotEmpty()) {
                 ExtendedFloatingActionButton(
                     onClick = { onCompressFiles(displayedFiles.take(4)) },
-                    icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
-                    text = { Text(if (language == AppLanguage.HINDI) ".ZIP बनाएं" else "Compress (.ZIP)") },
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    icon = { Icon(Icons.Default.FolderZip, contentDescription = null, tint = Color.White) },
+                    text = {
+                        Text(
+                            text = if (language == AppLanguage.HINDI) ".ZIP आर्काइव बनाएं" else "Create .ZIP Archive",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    },
+                    shape = RoundedCornerShape(20.dp),
+                    containerColor = Color(0xFF00C853),
+                    contentColor = Color.White
                 )
             }
         },
@@ -357,84 +428,320 @@ fun CategoryFileListScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding(),
-                color = MaterialTheme.colorScheme.surface,
+                color = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
                 tonalElevation = 2.dp
             ) {
                 Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = {
-                            if (storageDevice != null && currentFolderPath != rootPath) {
-                                val parent = File(currentFolderPath).parent
-                                if (parent != null && parent.startsWith(rootPath)) {
-                                    currentFolderPath = parent
-                                } else {
-                                    currentFolderPath = rootPath
-                                }
-                            } else {
-                                onBack()
+                    if (isSelectionMode) {
+                        // Multi-Selection Contextual Action Bar (मल्टी-सेलेक्शन बार)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { clearSelection() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear Selection",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
                             }
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
 
-                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = screenTitle,
+                                text = "$totalSelectedCount " + if (language == AppLanguage.HINDI) "चुने गए" else "selected",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
                                 ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.weight(1f)
                             )
-                            val subtitle = if (language == AppLanguage.HINDI) {
-                                "${displayedFolders.size} फ़ोल्डर • ${displayedFiles.size} फाइलें"
-                            } else {
-                                "${displayedFolders.size} folders • ${displayedFiles.size} files"
-                            }
-                            Text(
-                                text = subtitle,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
 
-                        if (storageDevice != null) {
-                            IconButton(onClick = { showCreateFolderDialog = true }) {
+                            // Select All / Deselect All
+                            val totalItems = displayedFolders.size + displayedFiles.size
+                            val isAllSelected = totalSelectedCount == totalItems && totalItems > 0
+                            IconButton(onClick = {
+                                if (isAllSelected) {
+                                    clearSelection()
+                                } else {
+                                    selectedFolderPaths.clear()
+                                    selectedFolderPaths.addAll(displayedFolders.map { it.path })
+                                    selectedFileIds.clear()
+                                    selectedFileIds.addAll(displayedFiles.map { it.id })
+                                }
+                            }) {
                                 Icon(
-                                    imageVector = Icons.Filled.CreateNewFolder,
-                                    contentDescription = "New Folder",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    imageVector = if (isAllSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
+                                    contentDescription = if (isAllSelected) "Deselect All" else "Select All",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
-                        }
 
-                        if (displayedFiles.isNotEmpty()) {
-                            IconButton(onClick = { onCompressFiles(displayedFiles.take(5)) }) {
+                            // Delete Selected Items
+                            IconButton(onClick = {
+                                selectedFileIds.forEach { onMoveToTrash(it) }
+                                val count = totalSelectedCount
+                                clearSelection()
+                                val msg = if (language == AppLanguage.HINDI) "$count आइटम ट्रैश में भेजे गए" else "$count items moved to trash"
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            }) {
                                 Icon(
-                                    imageVector = Icons.Default.FolderZip,
-                                    contentDescription = "ZIP Compress",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete Selected",
+                                    tint = Color(0xFFD93025)
                                 )
                             }
-                        }
 
-                        IconButton(onClick = { isGridView = !isGridView }) {
-                            Icon(
-                                imageVector = if (isGridView) Icons.Default.ViewList else Icons.Default.GridView,
-                                contentDescription = "Toggle View",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            // Selection overflow options (3-Dot Menu)
+                            var showSelectionMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { showSelectionMenu = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More Selection Options",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showSelectionMenu,
+                                    onDismissRequest = { showSelectionMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Zip Archive", fontWeight = FontWeight.SemiBold) },
+                                        leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null, tint = Color(0xFF00C853)) },
+                                        onClick = {
+                                            showSelectionMenu = false
+                                            val selectedFilesList = displayedFiles.filter { selectedFileIds.contains(it.id) }
+                                            if (selectedFilesList.isNotEmpty()) {
+                                                onCompressFiles(selectedFilesList)
+                                            } else if (displayedFiles.isNotEmpty()) {
+                                                onCompressFiles(displayedFiles)
+                                            } else {
+                                                Toast.makeText(context, if (language == AppLanguage.HINDI) "Zip Archive के लिए फ़ाइलें चुनें" else "Select files for Zip Archive", Toast.LENGTH_SHORT).show()
+                                            }
+                                            clearSelection()
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर में भेजें" else "Move to Safe folder") },
+                                        leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF00C853)) },
+                                        onClick = {
+                                            showSelectionMenu = false
+                                            selectedFileIds.forEach { onMoveToSafeFolder(it) }
+                                            clearSelection()
+                                            Toast.makeText(context, if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर में स्थानांतरित" else "Moved to Safe folder", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (language == AppLanguage.HINDI) "तारांकित में जोड़ें" else "Add to Starred") },
+                                        leadingIcon = { Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFF9AB00)) },
+                                        onClick = {
+                                            showSelectionMenu = false
+                                            selectedFileIds.forEach { onToggleStar(it) }
+                                            clearSelection()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Standard Top Bar
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = performScreenBack) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = screenTitle,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                val subtitle = if (language == AppLanguage.HINDI) {
+                                    "${displayedFolders.size} फ़ोल्डर • ${displayedFiles.size} फाइलें"
+                                } else {
+                                    "${displayedFolders.size} folders • ${displayedFiles.size} files"
+                                }
+                                Text(
+                                    text = subtitle,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            if (storageDevice != null) {
+                                IconButton(onClick = { showCreateFolderDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CreateNewFolder,
+                                        contentDescription = "New Folder",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            IconButton(onClick = { isGridView = !isGridView }) {
+                                Icon(
+                                    imageVector = if (isGridView) Icons.Default.ViewList else Icons.Default.GridView,
+                                    contentDescription = "Toggle View",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            // 3-Dot Corner Overflow Menu (तीन बिंदु मेनू)
+                            Box {
+                                IconButton(onClick = { showMenuDropdown = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More Options",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = showMenuDropdown,
+                                    onDismissRequest = { showMenuDropdown = false },
+                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                                ) {
+                                    // ZIP Compress Option (Zip Archive)
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "Zip Archive",
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.FolderZip,
+                                                contentDescription = "Zip Archive",
+                                                tint = Color(0xFF00C853)
+                                            )
+                                        },
+                                        onClick = {
+                                            showMenuDropdown = false
+                                            if (displayedFiles.isNotEmpty()) {
+                                                onCompressFiles(displayedFiles)
+                                            } else {
+                                                val noFilesMsg = if (language == AppLanguage.HINDI) {
+                                                    "Zip Archive बनाने के लिए इस फ़ोल्डर में कोई फ़ाइल नहीं है"
+                                                } else {
+                                                    "No files for Zip Archive in this folder"
+                                                }
+                                                Toast.makeText(context, noFilesMsg, Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    )
+
+                                    if (storageDevice != null) {
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(if (language == AppLanguage.HINDI) "नया फ़ोल्डर बनाएं" else "New folder")
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Filled.CreateNewFolder,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            },
+                                            onClick = {
+                                                showMenuDropdown = false
+                                                showCreateFolderDialog = true
+                                            }
+                                        )
+                                    }
+
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                    // Sort Options
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(if (language == AppLanguage.HINDI) "नाम अनुसार (A to Z)" else "Sort by name (A to Z)")
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.SortByAlpha, contentDescription = null)
+                                        },
+                                        trailingIcon = if (sortOption == "name_asc") {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
+                                        onClick = {
+                                            sortOption = "name_asc"
+                                            showMenuDropdown = false
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(if (language == AppLanguage.HINDI) "तारीख अनुसार (नई पहले)" else "Sort by date (Newest first)")
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Schedule, contentDescription = null)
+                                        },
+                                        trailingIcon = if (sortOption == "date_desc") {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
+                                        onClick = {
+                                            sortOption = "date_desc"
+                                            showMenuDropdown = false
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(if (language == AppLanguage.HINDI) "साइज अनुसार (बड़ी पहले)" else "Sort by size (Largest first)")
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.TrendingDown, contentDescription = null)
+                                        },
+                                        trailingIcon = if (sortOption == "size_desc") {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
+                                        onClick = {
+                                            sortOption = "size_desc"
+                                            showMenuDropdown = false
+                                        }
+                                    )
+
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = if (isGridView) {
+                                                    if (language == AppLanguage.HINDI) "सूची दृश्य (List View)" else "Switch to List View"
+                                                } else {
+                                                    if (language == AppLanguage.HINDI) "ग्रिड दृश्य (Grid View)" else "Switch to Grid View"
+                                                }
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (isGridView) Icons.Default.ViewList else Icons.Default.GridView,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            isGridView = !isGridView
+                                            showMenuDropdown = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -546,7 +853,7 @@ fun CategoryFileListScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 placeholder = {
                     Text(
-                        text = if (language == AppLanguage.HINDI) "खोजें..." else "Search folders and files...",
+                        text = if (language == AppLanguage.HINDI) "फ़ोल्डर और फ़ाइलों में खोजें..." else "Search folders and files...",
                         fontSize = 14.sp
                     )
                 },
@@ -598,17 +905,32 @@ fun CategoryFileListScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(displayedFolders, key = { "folder_${it.path}" }) { folder ->
+                        val isFolderSelected = selectedFolderPaths.contains(folder.path)
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { currentFolderPath = folder.path },
+                                .combinedClickable(
+                                    onLongClick = {
+                                        toggleFolderSelection(folder.path)
+                                    },
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            toggleFolderSelection(folder.path)
+                                        } else {
+                                            currentFolderPath = folder.path
+                                        }
+                                    }
+                                ),
                             shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFF2C2416),
+                            color = if (isFolderSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color(0xFF2C2416),
                             tonalElevation = 2.dp,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF5A4321))
+                            border = if (isFolderSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, Color(0xFF5A4321))
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Icon(
                                         imageVector = Icons.Filled.Folder,
                                         contentDescription = "Folder",
@@ -619,8 +941,17 @@ fun CategoryFileListScreen(
                                     Text(
                                         text = "${folder.itemCount} items",
                                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                                        color = Color(0xFFFFD54F)
+                                        color = Color(0xFFFFD54F),
+                                        modifier = Modifier.weight(1f)
                                     )
+                                    if (isSelectionMode) {
+                                        Icon(
+                                            imageVector = if (isFolderSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                                            contentDescription = if (isFolderSelected) "Selected" else "Not selected",
+                                            tint = if (isFolderSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
@@ -638,13 +969,26 @@ fun CategoryFileListScreen(
                     }
 
                     items(displayedFiles, key = { it.id }) { file ->
+                        val isFileSelected = selectedFileIds.contains(file.id)
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onFileClick(file) },
+                                .combinedClickable(
+                                    onLongClick = {
+                                        toggleFileSelection(file.id)
+                                    },
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            toggleFileSelection(file.id)
+                                        } else {
+                                            onFileClick(file)
+                                        }
+                                    }
+                                ),
                             shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            tonalElevation = 2.dp
+                            color = if (isFileSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant,
+                            tonalElevation = 2.dp,
+                            border = if (isFileSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Box(
@@ -707,6 +1051,26 @@ fun CategoryFileListScreen(
                                             modifier = Modifier.size(36.dp)
                                         )
                                     }
+
+                                    // Selection Indicator Overlay in Grid
+                                    if (isSelectionMode) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopStart)
+                                                .padding(6.dp)
+                                                .size(26.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isFileSelected) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.6f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isFileSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                                                contentDescription = if (isFileSelected) "Selected" else "Unselected",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
@@ -732,13 +1096,26 @@ fun CategoryFileListScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(displayedFolders, key = { "folder_${it.path}" }) { folder ->
+                        val isFolderSelected = selectedFolderPaths.contains(folder.path)
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { currentFolderPath = folder.path },
+                                .combinedClickable(
+                                    onLongClick = {
+                                        toggleFolderSelection(folder.path)
+                                    },
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            toggleFolderSelection(folder.path)
+                                        } else {
+                                            currentFolderPath = folder.path
+                                        }
+                                    }
+                                ),
                             shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            tonalElevation = 1.dp
+                            color = if (isFolderSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant,
+                            tonalElevation = 1.dp,
+                            border = if (isFolderSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
@@ -748,13 +1125,13 @@ fun CategoryFileListScreen(
                                     modifier = Modifier
                                         .size(42.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFF3B2F17)),
+                                        .background(if (isFolderSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color(0xFF3B2F17)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Folder,
                                         contentDescription = "Folder",
-                                        tint = Color(0xFFFFC107),
+                                        tint = if (isFolderSelected) MaterialTheme.colorScheme.primary else Color(0xFFFFC107),
                                         modifier = Modifier.size(26.dp)
                                     )
                                 }
@@ -777,24 +1154,46 @@ fun CategoryFileListScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = "Open",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                if (isSelectionMode) {
+                                    Icon(
+                                        imageVector = if (isFolderSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                                        contentDescription = if (isFolderSelected) "Selected" else "Unselected",
+                                        tint = if (isFolderSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = "Open",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
 
                     items(displayedFiles, key = { it.id }) { file ->
                         var showMenu by remember { mutableStateOf(false) }
+                        val isFileSelected = selectedFileIds.contains(file.id)
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onFileClick(file) },
+                                .combinedClickable(
+                                    onLongClick = {
+                                        toggleFileSelection(file.id)
+                                    },
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            toggleFileSelection(file.id)
+                                        } else {
+                                            onFileClick(file)
+                                        }
+                                    }
+                                ),
                             shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            tonalElevation = 1.dp
+                            color = if (isFileSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant,
+                            tonalElevation = 1.dp,
+                            border = if (isFileSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
@@ -878,66 +1277,75 @@ fun CategoryFileListScreen(
                                     )
                                 }
 
-                                if (file.isStarred) {
-                                    IconButton(onClick = { onToggleStar(file.id) }) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Star,
-                                            contentDescription = "Starred",
-                                            tint = Color(0xFFF9AB00)
-                                        )
+                                if (isSelectionMode) {
+                                    Icon(
+                                        imageVector = if (isFileSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                                        contentDescription = if (isFileSelected) "Selected" else "Unselected",
+                                        tint = if (isFileSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                } else {
+                                    if (file.isStarred) {
+                                        IconButton(onClick = { onToggleStar(file.id) }) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Star,
+                                                contentDescription = "Starred",
+                                                tint = Color(0xFFF9AB00)
+                                            )
+                                        }
                                     }
-                                }
 
-                                Box {
-                                    IconButton(onClick = { showMenu = true }) {
-                                        Icon(
-                                            imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "More Options",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    DropdownMenu(
-                                        expanded = showMenu,
-                                        onDismissRequest = { showMenu = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    if (file.isStarred) {
-                                                        if (language == AppLanguage.HINDI) "तारांकित से हटाएं" else "Remove Star"
-                                                    } else {
-                                                        if (language == AppLanguage.HINDI) "तारांकित में जोड़ें" else "Add to Starred"
-                                                    }
-                                                )
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    imageVector = if (file.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                                                    contentDescription = null,
-                                                    tint = if (file.isStarred) Color(0xFFF9AB00) else MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            },
-                                            onClick = {
-                                                showMenu = false
-                                                onToggleStar(file.id)
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर में भेजें" else "Move to Safe folder") },
-                                            leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF00C853)) },
-                                            onClick = {
-                                                showMenu = false
-                                                onMoveToSafeFolder(file.id)
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(if (language == AppLanguage.HINDI) "ट्रैश में भेजें" else "Move to Trash") },
-                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD93025)) },
-                                            onClick = {
-                                                showMenu = false
-                                                onMoveToTrash(file.id)
-                                            }
-                                        )
+                                    Box {
+                                        IconButton(onClick = { showMenu = true }) {
+                                            Icon(
+                                                imageVector = Icons.Default.MoreVert,
+                                                contentDescription = "More Options",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = showMenu,
+                                            onDismissRequest = { showMenu = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        if (file.isStarred) {
+                                                            if (language == AppLanguage.HINDI) "तारांकित से हटाएं" else "Remove Star"
+                                                        } else {
+                                                            if (language == AppLanguage.HINDI) "तारांकित में जोड़ें" else "Add to Starred"
+                                                        }
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = if (file.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                                                        contentDescription = null,
+                                                        tint = if (file.isStarred) Color(0xFFF9AB00) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                },
+                                                onClick = {
+                                                    showMenu = false
+                                                    onToggleStar(file.id)
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर में भेजें" else "Move to Safe folder") },
+                                                leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF00C853)) },
+                                                onClick = {
+                                                    showMenu = false
+                                                    onMoveToSafeFolder(file.id)
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(if (language == AppLanguage.HINDI) "ट्रैश में भेजें" else "Move to Trash") },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD93025)) },
+                                                onClick = {
+                                                    showMenu = false
+                                                    onMoveToTrash(file.id)
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }

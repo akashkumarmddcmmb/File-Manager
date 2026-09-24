@@ -67,7 +67,7 @@ fun ArchiveCompressModal(
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = if (language == AppLanguage.HINDI) "आर्काइव बनाएं (.ZIP)" else "Create Archive (.ZIP)",
+                        text = "Zip Archive",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )

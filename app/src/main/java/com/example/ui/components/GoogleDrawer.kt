@@ -192,7 +192,7 @@ fun GoogleDrawerContent(
             // Main Tab Navigation Items
             DrawerNavItem(
                 icon = Icons.Outlined.AutoFixHigh,
-                label = if (language == AppLanguage.HINDI) "क्लीन" else "Clean",
+                label = if (language == AppLanguage.HINDI) "साफ़ करें" else "Clean",
                 selected = currentTab == MainTab.CLEAN,
                 onClick = {
                     onTabSelected(MainTab.CLEAN)
@@ -201,7 +201,7 @@ fun GoogleDrawerContent(
             )
             DrawerNavItem(
                 icon = Icons.Filled.Folder,
-                label = if (language == AppLanguage.HINDI) "ब्राउज़" else "Browse",
+                label = if (language == AppLanguage.HINDI) "ब्राउज़ करें" else "Browse",
                 selected = currentTab == MainTab.BROWSE,
                 onClick = {
                     onTabSelected(MainTab.BROWSE)
@@ -210,7 +210,7 @@ fun GoogleDrawerContent(
             )
             DrawerNavItem(
                 icon = Icons.Outlined.Share,
-                label = if (language == AppLanguage.HINDI) "नियरबाय शेयर" else "Nearby Share",
+                label = if (language == AppLanguage.HINDI) "आस-पास शेयर करें" else "Nearby Share",
                 selected = currentTab == MainTab.SHARE,
                 onClick = {
                     onTabSelected(MainTab.SHARE)
@@ -251,7 +251,7 @@ fun GoogleDrawerContent(
             DrawerActionItem(
                 icon = Icons.Filled.Storage,
                 iconTint = Color(0xFF1A73E8),
-                label = if (language == AppLanguage.HINDI) "स्टोरेज विश्लेषण" else "Storage Breakdown",
+                label = if (language == AppLanguage.HINDI) "स्टोरेज विवरण" else "Storage Breakdown",
                 badge = "19 GB / 225 GB",
                 onClick = {
                     onCloseDrawer()
@@ -268,9 +268,9 @@ fun GoogleDrawerContent(
             DrawerActionItem(
                 icon = Icons.Outlined.ChecklistRtl,
                 iconTint = Color(0xFF00C853),
-                label = if (language == AppLanguage.HINDI) "फीचर्स सूची" else "Feature Directory",
-                subtitle = if (language == AppLanguage.HINDI) "सभी सुविधाएं और थीम ऑप्शंस" else "Complete feature capabilities & theme options",
-                badge = if (language == AppLanguage.HINDI) "सब देखें" else "All",
+                label = if (language == AppLanguage.HINDI) "सुविधा निर्देशिका" else "Feature Directory",
+                subtitle = if (language == AppLanguage.HINDI) "सभी अनगिनत सुविधाओं और थीम विकल्पों की पूरी सूची" else "Complete feature capabilities & theme options",
+                badge = if (language == AppLanguage.HINDI) "सभी" else "All",
                 onClick = {
                     onCloseDrawer()
                     onOpenFeatureList()
@@ -280,8 +280,8 @@ fun GoogleDrawerContent(
             // Settings & Utilities
             DrawerActionItem(
                 icon = Icons.Outlined.Translate,
-                label = if (language == AppLanguage.HINDI) "भाषा चुनें" else "Language",
-                badge = if (language == AppLanguage.HINDI) "हिंदी" else "English",
+                label = if (language == AppLanguage.HINDI) "भाषा" else "Language",
+                badge = if (language == AppLanguage.HINDI) "हिन्दी" else "English",
                 onClick = {
                     onCloseDrawer()
                     onOpenLanguageDialog()
@@ -318,7 +318,7 @@ fun GoogleDrawerContent(
             DrawerActionItem(
                 icon = Icons.Outlined.HelpOutline,
                 label = if (language == AppLanguage.HINDI) "सहायता और प्रतिक्रिया" else "Help & Feedback",
-                subtitle = if (language == AppLanguage.HINDI) "ईमेल: आकाश कुमार को प्रतिक्रिया भेजें" else "Email: Send feedback to Akash Kumar",
+                subtitle = if (language == AppLanguage.HINDI) "डेवलपर आकाश कुमार को प्रतिक्रिया भेजें" else "Send feedback to developer Akash Kumar",
                 onClick = {
                     onCloseDrawer()
                     onOpenFeedback()
@@ -330,7 +330,7 @@ fun GoogleDrawerContent(
 
             // Footer
             Text(
-                text = if (language == AppLanguage.HINDI) "आकाश कुमार - v2.4.0 (ऑफिसियल)" else "Akash Kumar - v2.4.0 (Official Edition)",
+                text = if (language == AppLanguage.HINDI) "आकाश कुमार - V2.4.0 (ऑफिशियल संस्करण)" else "Akash Kumar - V2.4.0 (Official Edition)",
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.padding(horizontal = 24.dp)

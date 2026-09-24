@@ -32,7 +32,7 @@ fun GoogleHeader(
     language: AppLanguage,
     modifier: Modifier = Modifier
 ) {
-    val searchPlaceholder = if (language == AppLanguage.HINDI) "फाइल्स में खोजें" else "Search in Files"
+    val searchPlaceholder = if (language == AppLanguage.HINDI) "फ़ाइलों में खोजें" else "Search in Files"
 
     Surface(
         modifier = modifier

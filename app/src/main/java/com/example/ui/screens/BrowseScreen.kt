@@ -150,8 +150,8 @@ fun BrowseScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     CollectionCard(
-                        title = if (language == AppLanguage.HINDI) "तारांकित फाइलें" else "Starred files",
-                        subtitle = if (language == AppLanguage.HINDI) "0 आइटम्स" else "0 items",
+                        title = if (language == AppLanguage.HINDI) "पसंदीदा फाइलें" else "Starred files",
+                        subtitle = if (language == AppLanguage.HINDI) "0 आइटम" else "0 items",
                         icon = Icons.Filled.Star,
                         iconColor = Color(0xFFF9AB00),
                         iconBgColor = Color(0xFF473618),
@@ -171,7 +171,7 @@ fun BrowseScreen(
                 Spacer(modifier = Modifier.height(10.dp))
                 CollectionCard(
                     title = if (language == AppLanguage.HINDI) "ट्रैश (कचरा)" else "Trash",
-                    subtitle = if (language == AppLanguage.HINDI) "0 आइटम्स" else "0 items",
+                    subtitle = if (language == AppLanguage.HINDI) "0 आइटम" else "0 items",
                     icon = Icons.Filled.Delete,
                     iconColor = Color(0xFF9AA0A6),
                     iconBgColor = Color(0xFF2C323D),
@@ -190,7 +190,7 @@ fun BrowseScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (language == AppLanguage.HINDI) "संग्रहण उपकरण" else "Storage devices",
+                        text = if (language == AppLanguage.HINDI) "स्टोरेज डिवाइसेस" else "Storage devices",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp

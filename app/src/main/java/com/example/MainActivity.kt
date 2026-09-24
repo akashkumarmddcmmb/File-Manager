@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.*
 import com.example.ui.components.*
@@ -82,6 +83,9 @@ private fun MainAppContent(
     val context = LocalContext.current
 
     var currentScreen by remember { mutableStateOf(AppNavScreen.MAIN_TABS) }
+    val screenHistory = remember { mutableStateListOf(AppNavScreen.MAIN_TABS) }
+    val tabHistory = remember { mutableStateListOf(MainTab.BROWSE) }
+
     var activeCategoryFilter by remember { mutableStateOf<FileCategoryType?>(null) }
     var activeStorageDevice by remember { mutableStateOf<StorageDeviceInfo?>(null) }
 
@@ -107,74 +111,137 @@ private fun MainAppContent(
 
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
 
-    BackHandler(enabled = true) {
+    fun navigateToScreen(screen: AppNavScreen) {
+        if (currentScreen != screen) {
+            if (screen == AppNavScreen.MAIN_TABS) {
+                screenHistory.clear()
+                screenHistory.add(AppNavScreen.MAIN_TABS)
+            } else {
+                screenHistory.add(screen)
+            }
+            currentScreen = screen
+        }
+    }
+
+    fun navigateToTab(tab: MainTab) {
+        if (uiState.currentTab != tab) {
+            if (tab == MainTab.BROWSE) {
+                tabHistory.clear()
+                tabHistory.add(MainTab.BROWSE)
+            } else {
+                tabHistory.add(tab)
+            }
+            viewModel.setTab(tab)
+        }
+    }
+
+    fun handleBackNavigation(): Boolean {
         when {
             // 1. Drawer open -> close drawer
             drawerState.isOpen -> {
                 coroutineScope.launch { drawerState.close() }
+                return true
             }
             // 2. Active Archive Modals -> close archive modal
             archiveToViewFile != null -> {
                 archiveToViewFile = null
+                return true
             }
             archiveToExtractFile != null -> {
                 archiveToExtractFile = null
+                return true
             }
             archiveToCompressFiles != null -> {
                 archiveToCompressFiles = null
+                return true
             }
             // 3. Active Media Modals -> close media viewer
             activeImageFile != null -> {
                 activeImageFile = null
+                return true
             }
             activePdfFile != null -> {
                 activePdfFile = null
+                return true
             }
             activeVideoFile != null || uiState.showFullVideoPlayer -> {
                 viewModel.stopVideoPlayback()
                 viewModel.closeVideoPlayer()
                 activeVideoFile = null
+                return true
             }
             activeMusicFile != null || uiState.showFullAudioPlayer -> {
                 viewModel.closeFullAudioPlayer()
                 activeMusicFile = null
+                return true
             }
             // 4. Active System & Settings Modals -> close modal
             showLegalPoliciesModal -> {
                 showLegalPoliciesModal = false
+                return true
             }
             showPinChangeModal -> {
                 showPinChangeModal = false
+                return true
             }
             showLanguageModal -> {
                 showLanguageModal = false
+                return true
             }
             showStorageBreakdownModal -> {
                 showStorageBreakdownModal = false
+                return true
             }
             showTrashModal -> {
                 showTrashModal = false
+                return true
             }
             showSafeFolderModal -> {
                 showSafeFolderModal = false
+                viewModel.lockSafeFolder()
+                return true
             }
             // 5. Multi-selection active -> clear archive selection
             uiState.selectedFilesForArchive.isNotEmpty() -> {
                 viewModel.closeArchiveCompressDialog()
+                return true
             }
-            // 6. Search query active -> clear search
+            // 6. Search query active in global header -> clear search
             uiState.searchQuery.isNotBlank() -> {
                 viewModel.setSearchQuery("")
+                return true
             }
-            // 7. In Sub-screens (CATEGORY_FILE_LIST, SETTINGS, FEATURE_LIST) -> step back to MAIN_TABS
+            // 7. Sub-screens history (e.g., Settings, Feature list, Category File list) -> step back in screen stack
+            screenHistory.size > 1 -> {
+                screenHistory.removeAt(screenHistory.lastIndex)
+                val prevScreen = screenHistory.lastOrNull() ?: AppNavScreen.MAIN_TABS
+                currentScreen = prevScreen
+                if (prevScreen != AppNavScreen.CATEGORY_FILE_LIST) {
+                    activeCategoryFilter = null
+                    activeStorageDevice = null
+                }
+                return true
+            }
             currentScreen != AppNavScreen.MAIN_TABS -> {
                 activeCategoryFilter = null
                 activeStorageDevice = null
                 currentScreen = AppNavScreen.MAIN_TABS
+                screenHistory.clear()
+                screenHistory.add(AppNavScreen.MAIN_TABS)
+                return true
             }
-            // 8. If on CLEAN or SHARE tab -> step back to default BROWSE tab
+            // 8. Tab history (e.g., Clean/Share back to Browse) -> step back in tab stack
+            tabHistory.size > 1 -> {
+                tabHistory.removeAt(tabHistory.lastIndex)
+                val prevTab = tabHistory.lastOrNull() ?: MainTab.BROWSE
+                viewModel.setTab(prevTab)
+                return true
+            }
             uiState.currentTab != MainTab.BROWSE -> {
+                tabHistory.clear()
+                tabHistory.add(MainTab.BROWSE)
                 viewModel.setTab(MainTab.BROWSE)
+                return true
             }
             // 9. Root level: Double-back to exit prevention
             else -> {
@@ -190,8 +257,31 @@ private fun MainAppContent(
                     }
                     Toast.makeText(context, exitMsg, Toast.LENGTH_SHORT).show()
                 }
+                return true
             }
         }
+    }
+
+    val isAnyOverlayActive = drawerState.isOpen ||
+            archiveToViewFile != null ||
+            archiveToExtractFile != null ||
+            archiveToCompressFiles != null ||
+            activeImageFile != null ||
+            activePdfFile != null ||
+            activeVideoFile != null ||
+            uiState.showFullVideoPlayer ||
+            activeMusicFile != null ||
+            uiState.showFullAudioPlayer ||
+            showLegalPoliciesModal ||
+            showPinChangeModal ||
+            showLanguageModal ||
+            showStorageBreakdownModal ||
+            showTrashModal ||
+            showSafeFolderModal ||
+            uiState.selectedFilesForArchive.isNotEmpty()
+
+    BackHandler(enabled = true) {
+        handleBackNavigation()
     }
 
     ModalNavigationDrawer(
@@ -201,23 +291,23 @@ private fun MainAppContent(
                 currentTab = uiState.currentTab,
                 language = uiState.language,
                 onSelectTab = { tab ->
-                    viewModel.setTab(tab)
-                    currentScreen = AppNavScreen.MAIN_TABS
+                    navigateToTab(tab)
+                    navigateToScreen(AppNavScreen.MAIN_TABS)
                     coroutineScope.launch { drawerState.close() }
                 },
                 onOpenClean = {
-                    viewModel.setTab(MainTab.CLEAN)
-                    currentScreen = AppNavScreen.MAIN_TABS
+                    navigateToTab(MainTab.CLEAN)
+                    navigateToScreen(AppNavScreen.MAIN_TABS)
                     coroutineScope.launch { drawerState.close() }
                 },
                 onOpenBrowse = {
-                    viewModel.setTab(MainTab.BROWSE)
-                    currentScreen = AppNavScreen.MAIN_TABS
+                    navigateToTab(MainTab.BROWSE)
+                    navigateToScreen(AppNavScreen.MAIN_TABS)
                     coroutineScope.launch { drawerState.close() }
                 },
                 onOpenShare = {
-                    viewModel.setTab(MainTab.SHARE)
-                    currentScreen = AppNavScreen.MAIN_TABS
+                    navigateToTab(MainTab.SHARE)
+                    navigateToScreen(AppNavScreen.MAIN_TABS)
                     coroutineScope.launch { drawerState.close() }
                 },
                 onOpenSafeFolder = {
@@ -229,11 +319,11 @@ private fun MainAppContent(
                     coroutineScope.launch { drawerState.close() }
                 },
                 onOpenSettings = {
-                    currentScreen = AppNavScreen.SETTINGS
+                    navigateToScreen(AppNavScreen.SETTINGS)
                     coroutineScope.launch { drawerState.close() }
                 },
                 onOpenHelp = {
-                    currentScreen = AppNavScreen.FEATURE_LIST
+                    navigateToScreen(AppNavScreen.FEATURE_LIST)
                     coroutineScope.launch { drawerState.close() }
                 },
                 onCloseDrawer = {
@@ -244,6 +334,7 @@ private fun MainAppContent(
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
                 if (currentScreen == AppNavScreen.MAIN_TABS) {
                     Column(modifier = Modifier.statusBarsPadding()) {
@@ -281,7 +372,7 @@ private fun MainAppContent(
                         BottomNavBar(
                             selectedTab = uiState.currentTab,
                             language = uiState.language,
-                            onTabSelected = { viewModel.setTab(it) }
+                            onTabSelected = { navigateToTab(it) }
                         )
                     }
                 }
@@ -290,7 +381,10 @@ private fun MainAppContent(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
+                    .padding(
+                        top = if (currentScreen == AppNavScreen.MAIN_TABS) innerPadding.calculateTopPadding() else 0.dp,
+                        bottom = innerPadding.calculateBottomPadding()
+                    )
             ) {
                 when (currentScreen) {
                     AppNavScreen.MAIN_TABS -> {
@@ -317,12 +411,12 @@ private fun MainAppContent(
                                     onCategoryClick = { category ->
                                         activeCategoryFilter = category
                                         activeStorageDevice = null
-                                        currentScreen = AppNavScreen.CATEGORY_FILE_LIST
+                                        navigateToScreen(AppNavScreen.CATEGORY_FILE_LIST)
                                     },
                                     onDeviceClick = { device ->
                                         activeCategoryFilter = null
                                         activeStorageDevice = device
-                                        currentScreen = AppNavScreen.CATEGORY_FILE_LIST
+                                        navigateToScreen(AppNavScreen.CATEGORY_FILE_LIST)
                                     },
                                     onRecentFileClick = { file ->
                                         handleOpenFile(
@@ -356,10 +450,10 @@ private fun MainAppContent(
                                     onOpenStarred = {
                                         activeCategoryFilter = null
                                         activeStorageDevice = null
-                                        currentScreen = AppNavScreen.CATEGORY_FILE_LIST
+                                        navigateToScreen(AppNavScreen.CATEGORY_FILE_LIST)
                                     },
                                     onOpenTrash = { showTrashModal = true },
-                                    onOpenFeatureList = { currentScreen = AppNavScreen.FEATURE_LIST },
+                                    onOpenFeatureList = { navigateToScreen(AppNavScreen.FEATURE_LIST) },
                                     onRefreshDevices = { viewModel.refreshRealStorage(context) },
                                     getCategoryText = { cat ->
                                         val count = viewModel.getCategoryCount(cat)
@@ -382,7 +476,7 @@ private fun MainAppContent(
                             storageDevice = activeStorageDevice,
                             files = uiState.files,
                             language = uiState.language,
-                            onBack = { currentScreen = AppNavScreen.MAIN_TABS },
+                            onBack = { handleBackNavigation() },
                             onFileClick = { file ->
                                 handleOpenFile(
                                     file = file,
@@ -399,7 +493,8 @@ private fun MainAppContent(
                             onMoveToSafeFolder = { viewModel.moveToSafeFolder(it) },
                             onCompressFiles = { filesList ->
                                 archiveToCompressFiles = filesList
-                            }
+                            },
+                            isOverlayActive = isAnyOverlayActive
                         )
                     }
                     AppNavScreen.SETTINGS -> {
@@ -416,13 +511,30 @@ private fun MainAppContent(
                                 legalPolicyType = PolicyType.TERMS
                                 showLegalPoliciesModal = true
                             },
-                            onBack = { currentScreen = AppNavScreen.MAIN_TABS }
+                            onBack = { handleBackNavigation() }
                         )
                     }
                     AppNavScreen.FEATURE_LIST -> {
                         FeatureListScreen(
                             language = uiState.language,
-                            onBack = { currentScreen = AppNavScreen.MAIN_TABS }
+                            onBack = { handleBackNavigation() },
+                            onOpenSettings = { navigateToScreen(AppNavScreen.SETTINGS) },
+                            onOpenBrowse = {
+                                navigateToTab(MainTab.BROWSE)
+                                navigateToScreen(AppNavScreen.MAIN_TABS)
+                            },
+                            onOpenClean = {
+                                navigateToTab(MainTab.CLEAN)
+                                navigateToScreen(AppNavScreen.MAIN_TABS)
+                            },
+                            onOpenShare = {
+                                navigateToTab(MainTab.SHARE)
+                                navigateToScreen(AppNavScreen.MAIN_TABS)
+                            },
+                            onOpenSafeFolder = { showSafeFolderModal = true },
+                            onOpenTrash = { showTrashModal = true },
+                            onOpenStorageBreakdown = { showStorageBreakdownModal = true },
+                            onOpenLanguageDialog = { showLanguageModal = true }
                         )
                     }
                 }
