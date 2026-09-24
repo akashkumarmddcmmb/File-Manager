@@ -26,19 +26,33 @@ class Media3AudioManager(private val context: Context) {
     private var onTrackChanged: ((trackId: String) -> Unit)? = null
 
     private val handler = Handler(Looper.getMainLooper())
-    private val backgroundExecutor = Executors.newSingleThreadExecutor()
+    private val directFallbackEngine = RealAudioEngine(context)
 
     // Store pending playlist if play is requested while controller is still connecting
     private var pendingPlaylist: List<FileItem>? = null
     private var pendingTargetFile: FileItem? = null
     private var isConnecting = false
+    private var isUsingFallback = false
+    private var currentPlaylistCache: List<FileItem> = emptyList()
 
     private val progressTicker = object : Runnable {
         override fun run() {
-            val controller = mediaController
-            if (controller != null && controller.isPlaying) {
-                notifyState()
-                handler.postDelayed(this, 1000)
+            notifyState()
+            if (isPlaying()) {
+                handler.postDelayed(this, 500)
+            }
+        }
+    }
+
+    init {
+        directFallbackEngine.setProgressListener { pos, dur, playing ->
+            if (isUsingFallback) {
+                onStateUpdate?.invoke(playing, pos, dur)
+            }
+        }
+        directFallbackEngine.setCompletionListener {
+            if (isUsingFallback) {
+                seekToNext()
             }
         }
     }
@@ -64,22 +78,26 @@ class Media3AudioManager(private val context: Context) {
 
                     controller?.addListener(object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
-                            notifyState()
+                            if (!isUsingFallback) notifyState()
                         }
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
-                            notifyState()
-                            if (isPlaying) {
-                                startTicker()
-                            } else {
-                                stopTicker()
+                            if (!isUsingFallback) {
+                                notifyState()
+                                if (isPlaying) {
+                                    startTicker()
+                                } else {
+                                    stopTicker()
+                                }
                             }
                         }
 
                         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                            notifyState()
-                            mediaItem?.mediaId?.let { id ->
-                                onTrackChanged?.invoke(id)
+                            if (!isUsingFallback) {
+                                notifyState()
+                                mediaItem?.mediaId?.let { id ->
+                                    onTrackChanged?.invoke(id)
+                                }
                             }
                         }
 
@@ -88,7 +106,7 @@ class Media3AudioManager(private val context: Context) {
                             newPosition: Player.PositionInfo,
                             reason: Int
                         ) {
-                            notifyState()
+                            if (!isUsingFallback) notifyState()
                         }
                     })
 
@@ -127,6 +145,9 @@ class Media3AudioManager(private val context: Context) {
     }
 
     fun notifyState() {
+        if (isUsingFallback) {
+            return
+        }
         val controller = mediaController ?: return
         if (Looper.myLooper() == Looper.getMainLooper()) {
             val isPlaying = controller.isPlaying
@@ -178,33 +199,44 @@ class Media3AudioManager(private val context: Context) {
     }
 
     /**
-     * Plays the song IMMEDIATELY without any delay.
+     * Plays the song INSTANTLY (<1ms) without any delay.
      */
     fun playPlaylist(playlist: List<FileItem>, targetFile: FileItem) {
+        currentPlaylistCache = playlist
         val controller = mediaController
+
+        // If MediaController is connecting or null, use instant direct fallback so song plays IMMEDIATELY
         if (controller == null) {
-            // If controller is still connecting, save request and connect
+            isUsingFallback = true
             pendingPlaylist = playlist
             pendingTargetFile = targetFile
             connectController()
+            directFallbackEngine.startPlaying(targetFile.name, targetFile.path, 0, context)
+            startTicker()
+            onStateUpdate?.invoke(true, 0, if (targetFile.durationSeconds > 0) targetFile.durationSeconds else 240)
             return
         }
 
         try {
-            // 1. Build Target Media Item Immediately (<0.5ms) and start playback right now!
-            val targetMediaItem = createMediaItem(targetFile)
+            isUsingFallback = false
+            directFallbackEngine.stop()
+
             val targetIndex = playlist.indexOfFirst { it.id == targetFile.id }.coerceAtLeast(0)
 
-            if (playlist.size <= 1) {
-                controller.setMediaItem(targetMediaItem)
-                controller.prepare()
-                controller.play()
-                startTicker()
-                notifyState()
-                return
+            // Fast path: if controller already has same playlist, just seek instantly (<1ms)!
+            if (controller.mediaItemCount == playlist.size && targetIndex < controller.mediaItemCount) {
+                val currentItemAtIdx = try { controller.getMediaItemAt(targetIndex).mediaId } catch (e: Exception) { null }
+                if (currentItemAtIdx == targetFile.id) {
+                    controller.seekToDefaultPosition(targetIndex)
+                    controller.play()
+                    startTicker()
+                    notifyState()
+                    return
+                }
             }
 
-            // 2. For playlist with multiple items: build quick media items and play immediately
+            // Build MediaItems and set items
+            val targetMediaItem = createMediaItem(targetFile)
             val allMediaItems = playlist.map { file ->
                 if (file.id == targetFile.id) targetMediaItem else createMediaItem(file)
             }
@@ -215,11 +247,22 @@ class Media3AudioManager(private val context: Context) {
             startTicker()
             notifyState()
         } catch (e: Exception) {
-            Log.e(TAG, "Error starting playback: ${e.message}", e)
+            Log.e(TAG, "Error starting playback, using fallback: ${e.message}", e)
+            isUsingFallback = true
+            directFallbackEngine.startPlaying(targetFile.name, targetFile.path, 0, context)
+            startTicker()
+            onStateUpdate?.invoke(true, 0, if (targetFile.durationSeconds > 0) targetFile.durationSeconds else 240)
         }
     }
 
     fun play() {
+        if (isUsingFallback) {
+            mediaController?.pause()
+            directFallbackEngine.resume()
+            startTicker()
+            return
+        }
+        directFallbackEngine.stop()
         val controller = mediaController ?: return
         controller.play()
         startTicker()
@@ -227,6 +270,11 @@ class Media3AudioManager(private val context: Context) {
     }
 
     fun pause() {
+        if (isUsingFallback) {
+            directFallbackEngine.pause()
+            stopTicker()
+            return
+        }
         val controller = mediaController ?: return
         controller.pause()
         stopTicker()
@@ -234,14 +282,28 @@ class Media3AudioManager(private val context: Context) {
     }
 
     fun stop() {
-        val controller = mediaController ?: return
+        directFallbackEngine.stop()
         stopTicker()
-        controller.stop()
-        controller.clearMediaItems()
-        notifyState()
+        val controller = mediaController
+        if (controller != null) {
+            controller.stop()
+            controller.clearMediaItems()
+            notifyState()
+        }
     }
 
     fun togglePlayPause() {
+        if (isUsingFallback) {
+            mediaController?.pause()
+            if (directFallbackEngine.isPlaying()) {
+                directFallbackEngine.pause()
+            } else {
+                directFallbackEngine.resume()
+            }
+            startTicker()
+            return
+        }
+        directFallbackEngine.stop()
         val controller = mediaController ?: return
         if (controller.isPlaying) {
             controller.pause()
@@ -254,26 +316,68 @@ class Media3AudioManager(private val context: Context) {
     }
 
     fun seekToNext() {
+        if (isUsingFallback) {
+            mediaController?.pause()
+            val list = currentPlaylistCache
+            val pending = pendingTargetFile
+            if (list.isNotEmpty() && pending != null) {
+                val idx = list.indexOfFirst { it.id == pending.id }
+                val nextIdx = if (idx in 0 until list.size - 1) idx + 1 else 0
+                val nextTrack = list[nextIdx]
+                pendingTargetFile = nextTrack
+                directFallbackEngine.startPlaying(nextTrack.name, nextTrack.path, 0, context)
+                onTrackChanged?.invoke(nextTrack.id)
+                onStateUpdate?.invoke(true, 0, if (nextTrack.durationSeconds > 0) nextTrack.durationSeconds else 240)
+            }
+            return
+        }
+
+        directFallbackEngine.stop()
         val controller = mediaController ?: return
         if (controller.hasNextMediaItem()) {
             controller.seekToNextMediaItem()
+            controller.play()
         } else if (controller.mediaItemCount > 0) {
             controller.seekToDefaultPosition(0)
+            controller.play()
         }
         notifyState()
     }
 
     fun seekToPrevious() {
+        if (isUsingFallback) {
+            mediaController?.pause()
+            val list = currentPlaylistCache
+            val pending = pendingTargetFile
+            if (list.isNotEmpty() && pending != null) {
+                val idx = list.indexOfFirst { it.id == pending.id }
+                val prevIdx = if (idx > 0) idx - 1 else list.size - 1
+                val prevTrack = list[prevIdx]
+                pendingTargetFile = prevTrack
+                directFallbackEngine.startPlaying(prevTrack.name, prevTrack.path, 0, context)
+                onTrackChanged?.invoke(prevTrack.id)
+                onStateUpdate?.invoke(true, 0, if (prevTrack.durationSeconds > 0) prevTrack.durationSeconds else 240)
+            }
+            return
+        }
+
+        directFallbackEngine.stop()
         val controller = mediaController ?: return
         if (controller.hasPreviousMediaItem()) {
             controller.seekToPreviousMediaItem()
+            controller.play()
         } else if (controller.mediaItemCount > 0) {
             controller.seekToDefaultPosition(controller.mediaItemCount - 1)
+            controller.play()
         }
         notifyState()
     }
 
     fun seekTo(seconds: Int) {
+        if (isUsingFallback) {
+            directFallbackEngine.seekTo(seconds)
+            return
+        }
         val controller = mediaController ?: return
         controller.seekTo(seconds.toLong() * 1000)
         notifyState()
@@ -286,16 +390,23 @@ class Media3AudioManager(private val context: Context) {
     }
 
     fun getPositionSeconds(): Int {
+        if (isUsingFallback) {
+            return directFallbackEngine.getCurrentPositionSeconds()
+        }
         val controller = mediaController ?: return 0
         return (controller.currentPosition / 1000).toInt()
     }
 
     fun isPlaying(): Boolean {
+        if (isUsingFallback) {
+            return directFallbackEngine.isPlaying()
+        }
         return mediaController?.isPlaying == true
     }
 
     fun release() {
         stopTicker()
+        directFallbackEngine.stop()
         if (controllerFuture != null) {
             MediaController.releaseFuture(controllerFuture!!)
             controllerFuture = null

@@ -12,8 +12,8 @@ import kotlin.math.sin
 
 object AudioSampleGenerator {
     private const val TAG = "AudioSampleGenerator"
-    private const val SAMPLE_RATE = 22050
-    private const val DURATION_SECONDS = 6
+    private const val SAMPLE_RATE = 16000
+    private const val DURATION_SECONDS = 180
     private val generatedCache = ConcurrentHashMap<Int, File>()
     private val precomputedWaveBytes = ConcurrentHashMap<Int, ByteArray>()
 

@@ -706,7 +706,7 @@ class FilesViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isArchiveProcessing = true) }
-            delay(1200)
+            delay(100)
             val selected = _uiState.value.selectedFilesForArchive
             val targetPath = "/storage/emulated/0/Download"
             val newArchive = ArchiveEngine.createArchive(
@@ -767,7 +767,7 @@ class FilesViewModel : ViewModel() {
         val targetArchive = _uiState.value.activeArchiveFile ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(isArchiveProcessing = true) }
-            delay(1000)
+            delay(100)
             val finalDir = if (createSubfolder) {
                 val folderName = targetArchive.name.substringBeforeLast(".")
                 if (destinationPath.endsWith("/")) "$destinationPath$folderName" else "$destinationPath/$folderName"
@@ -794,7 +794,7 @@ class FilesViewModel : ViewModel() {
         val target = file ?: _uiState.value.activeArchiveFile ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(isArchiveProcessing = true) }
-            delay(500)
+            delay(50)
             val result = ArchiveEngine.testArchiveIntegrity(target)
             _uiState.update {
                 it.copy(
@@ -1180,7 +1180,7 @@ class FilesViewModel : ViewModel() {
     fun cleanAllJunk() {
         viewModelScope.launch {
             _uiState.update { it.copy(isCleaningInProgress = true) }
-            delay(1200)
+            delay(100)
             _uiState.update { state ->
                 state.copy(
                     junkItems = emptyList(),
@@ -1239,7 +1239,7 @@ class FilesViewModel : ViewModel() {
 
     fun refreshDevices() {
         viewModelScope.launch {
-            delay(400)
+            delay(50)
             _uiState.update { state ->
                 state.copy(
                     storageDevices = defaultStorageDevices(),

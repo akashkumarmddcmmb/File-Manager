@@ -22,6 +22,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.FileItem
 
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
+
+fun getArtworkUrl(file: FileItem): String {
+    return when {
+        file.id == "aud_kesariya" || file.name.contains("Kesariya", ignoreCase = true) -> 
+            "https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=500&auto=format&fit=crop&q=80"
+        file.id == "aud_chaleya" || file.name.contains("Chaleya", ignoreCase = true) -> 
+            "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80"
+        file.id == "aud_tumhiho" || file.name.contains("Tum Hi Ho", ignoreCase = true) -> 
+            "https://images.unsplash.com/photo-1534313314376-a72289b6181e?w=500&auto=format&fit=crop&q=80"
+        file.id == "aud_acoustic" || file.name.contains("Acoustic", ignoreCase = true) -> 
+            "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=500&auto=format&fit=crop&q=80"
+        file.id == "aud_lofi" || file.name.contains("Lofi", ignoreCase = true) -> 
+            "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=500&auto=format&fit=crop&q=80"
+        file.id.startsWith("rec_") || file.name.contains("Voice", ignoreCase = true) -> 
+            "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=500&auto=format&fit=crop&q=80"
+        else -> 
+            "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop&q=80"
+    }
+}
+
 @Composable
 fun MiniPlayerBar(
     playingFile: FileItem,
@@ -82,28 +105,20 @@ fun MiniPlayerBar(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(Color(0xFF2C3440), Color(0xFF101418))
-                            )
-                        )
                         .rotate(if (isPlaying) rotation else 0f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(getArtworkUrl(playingFile))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Song Artwork",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         modifier = Modifier
-                            .size(16.dp)
+                            .fillMaxSize()
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(Color.White)
-                        )
-                    }
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
