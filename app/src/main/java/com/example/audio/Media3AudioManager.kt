@@ -38,7 +38,7 @@ class Media3AudioManager(private val context: Context) {
             val controller = mediaController
             if (controller != null && controller.isPlaying) {
                 notifyState()
-                handler.postDelayed(this, 500)
+                handler.postDelayed(this, 1000)
             }
         }
     }

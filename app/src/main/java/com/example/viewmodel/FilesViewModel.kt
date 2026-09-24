@@ -62,6 +62,15 @@ data class FilesUiState(
     val selectedFilesForArchive: List<FileItem> = emptyList(),
     val isArchiveProcessing: Boolean = false,
 
+    // Clipboard & File Transfer State (Copy / Move / Paste)
+    val clipboardState: ClipboardState = ClipboardState(),
+    val showFolderDestinationPicker: Boolean = false,
+    val pendingTransferAction: ClipboardOperationType? = null,
+    val pendingTransferItems: List<ClipboardItem> = emptyList(),
+    val fileTransferSuccessToast: String? = null,
+    val transferProgressState: TransferProgressState = TransferProgressState(),
+
+
     // Music Player State (MP3)
     val playingAudioFile: FileItem? = null,
     val isAudioPlaying: Boolean = false,
@@ -160,14 +169,15 @@ class FilesViewModel : ViewModel() {
                 seekAudio(seconds)
             }
         }
-        startPlaybackTicker()
     }
 
-    private fun startPlaybackTicker() {
-        viewModelScope.launch {
+    private var videoTickerJob: kotlinx.coroutines.Job? = null
+
+    private fun startVideoTicker() {
+        videoTickerJob?.cancel()
+        videoTickerJob = viewModelScope.launch {
             while (true) {
                 delay(1000)
-                // Video ticker
                 val vs = _uiState.value
                 if (vs.isVideoPlaying && vs.playingVideoFile != null) {
                     val vstep = (1 * vs.videoPlaybackSpeed).toInt().coerceAtLeast(1)
@@ -179,12 +189,21 @@ class FilesViewModel : ViewModel() {
                                 videoPositionSeconds = vs.videoDurationSeconds
                             )
                         }
+                        stopVideoTicker()
+                        break
                     } else {
                         _uiState.update { it.copy(videoPositionSeconds = nextVPos) }
                     }
+                } else {
+                    break
                 }
             }
         }
+    }
+
+    private fun stopVideoTicker() {
+        videoTickerJob?.cancel()
+        videoTickerJob = null
     }
 
     fun setTab(tab: MainTab) {
@@ -438,14 +457,21 @@ class FilesViewModel : ViewModel() {
                 playingAudioFile = null
             )
         }
+        startVideoTicker()
     }
 
     fun toggleVideoPlayPause() {
         val willPlay = !_uiState.value.isVideoPlaying
         _uiState.update { it.copy(isVideoPlaying = willPlay) }
+        if (willPlay) {
+            startVideoTicker()
+        } else {
+            stopVideoTicker()
+        }
     }
 
     fun stopVideoPlayback() {
+        stopVideoTicker()
         videoAudioEngine.stop()
         _uiState.update {
             it.copy(
@@ -537,6 +563,7 @@ class FilesViewModel : ViewModel() {
     }
 
     fun closeVideoPlayer() {
+        stopVideoTicker()
         videoAudioEngine.stop()
         _uiState.update {
             it.copy(
@@ -550,6 +577,7 @@ class FilesViewModel : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
+        stopVideoTicker()
         videoAudioEngine.stop()
         media3AudioManager?.stop()
     }
@@ -704,9 +732,9 @@ class FilesViewModel : ViewModel() {
                     showArchiveCompressDialog = false,
                     selectedFilesForArchive = emptyList(),
                     cleanSuccessMessage = if (state.language == AppLanguage.HINDI)
-                        ".ZIP आर्काइव '${newArchive.name}' (${newArchive.formattedSize}) सफलतापूर्वक बनाया गया!"
+                        "${format.displayName} आर्काइव '${newArchive.name}' (${newArchive.formattedSize}) सफलतापूर्वक बनाया गया!"
                     else
-                        ".ZIP archive '${newArchive.name}' (${newArchive.formattedSize}) created successfully!"
+                        "${format.displayName} archive '${newArchive.name}' (${newArchive.formattedSize}) created successfully!"
                 )
             }
         }
@@ -791,6 +819,131 @@ class FilesViewModel : ViewModel() {
             (it.category == FileCategoryType.ARCHIVES || it.extension in listOf("zip", "7z", "rar", "tar", "gz", "bz2", "xz")) &&
                     !it.isInTrash && !it.isInSafeFolder
         }
+    }
+
+    // --- File & Folder Copy / Move / Paste Operations ---
+
+    fun openDestinationPicker(items: List<ClipboardItem>, action: ClipboardOperationType) {
+        _uiState.update {
+            it.copy(
+                showFolderDestinationPicker = true,
+                pendingTransferAction = action,
+                pendingTransferItems = items
+            )
+        }
+    }
+
+    fun closeDestinationPicker() {
+        _uiState.update {
+            it.copy(
+                showFolderDestinationPicker = false,
+                pendingTransferAction = null,
+                pendingTransferItems = emptyList()
+            )
+        }
+    }
+
+    fun setClipboard(items: List<ClipboardItem>, action: ClipboardOperationType) {
+        _uiState.update {
+            it.copy(
+                clipboardState = ClipboardState(
+                    action = action,
+                    items = items,
+                    isActive = true
+                )
+            )
+        }
+    }
+
+    fun clearClipboard() {
+        _uiState.update {
+            it.copy(
+                clipboardState = ClipboardState(isActive = false)
+            )
+        }
+    }
+
+    fun clearTransferToast() {
+        _uiState.update { it.copy(fileTransferSuccessToast = null) }
+    }
+
+    private var activeTransferJob: kotlinx.coroutines.Job? = null
+    private var currentTransferSpeedMultiplier: Int = 1
+    private var isTransferCancelledState: Boolean = false
+
+    fun setTransferSpeedMultiplier(multiplier: Int) {
+        currentTransferSpeedMultiplier = multiplier.coerceIn(1, 10)
+        _uiState.update {
+            it.copy(
+                transferProgressState = it.transferProgressState.copy(speedMultiplier = currentTransferSpeedMultiplier)
+            )
+        }
+    }
+
+    fun cancelTransfer() {
+        isTransferCancelledState = true
+        activeTransferJob?.cancel()
+        _uiState.update {
+            it.copy(
+                transferProgressState = TransferProgressState(isTransferring = false)
+            )
+        }
+    }
+
+    fun executeTransfer(
+        items: List<ClipboardItem>,
+        destinationPath: String,
+        action: ClipboardOperationType
+    ) {
+        activeTransferJob?.cancel()
+        isTransferCancelledState = false
+        currentTransferSpeedMultiplier = 1
+
+        _uiState.update {
+            it.copy(
+                showFolderDestinationPicker = false,
+                transferProgressState = TransferProgressState(
+                    isTransferring = true,
+                    action = action,
+                    totalFilesCount = items.size,
+                    currentFileIndex = 1,
+                    speedMultiplier = 1
+                )
+            )
+        }
+
+        activeTransferJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val result = com.example.storage.FileOperationsEngine.executeTransferWithProgress(
+                items = items,
+                destinationPath = destinationPath,
+                action = action,
+                currentFiles = _uiState.value.files,
+                getSpeedMultiplier = { currentTransferSpeedMultiplier },
+                checkIsCancelled = { isTransferCancelledState },
+                onProgressUpdate = { progressState ->
+                    _uiState.update { it.copy(transferProgressState = progressState) }
+                }
+            )
+
+            _uiState.update {
+                it.copy(
+                    files = result.updatedFiles,
+                    showFolderDestinationPicker = false,
+                    pendingTransferAction = null,
+                    pendingTransferItems = emptyList(),
+                    clipboardState = if (action == ClipboardOperationType.MOVE) ClipboardState(isActive = false) else it.clipboardState,
+                    transferProgressState = TransferProgressState(isTransferring = false),
+                    fileTransferSuccessToast = if (it.language == AppLanguage.HINDI) result.messageHi else result.messageEn
+                )
+            }
+        }
+    }
+
+
+    fun pasteClipboardTo(destinationPath: String) {
+        val clip = _uiState.value.clipboardState
+        if (!clip.isActive || clip.items.isEmpty()) return
+        executeTransfer(clip.items, destinationPath, clip.action)
     }
 
     fun toggleStarred(fileId: String) {

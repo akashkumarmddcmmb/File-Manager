@@ -3,7 +3,9 @@ package com.example.ui.modals
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,29 +20,45 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.model.AppLanguage
-import com.example.model.FileItem
+import com.example.model.*
 
 @Composable
 fun ArchiveCompressModal(
     filesToCompress: List<FileItem>,
     language: AppLanguage,
-    onConfirm: (String, Int, String?, Boolean, String?) -> Unit,
+    onConfirm: (
+        name: String,
+        format: ArchiveFormat,
+        level: CompressionLevel,
+        method: CompressionMethod,
+        password: String?,
+        encryptHeader: Boolean,
+        splitOption: SplitVolumeOption,
+        deleteSource: Boolean
+    ) -> Unit,
     onDismiss: () -> Unit
 ) {
     var archiveName by remember { mutableStateOf("Archive_Suite") }
-    var compressionLevel by remember { mutableFloatStateOf(5f) } // 0 - 9
+    var selectedFormat by remember { mutableStateOf(ArchiveFormat.SEVEN_ZIP) }
+    var selectedLevel by remember { mutableStateOf(CompressionLevel.NORMAL) }
+    var selectedMethod by remember { mutableStateOf(CompressionMethod.LZMA2) }
+    var selectedDictSize by remember { mutableStateOf(DictionarySize.SIZE_32MB) }
+    var isSolidArchive by remember { mutableStateOf(true) }
     var passwordInput by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
-    var encryptArchive by remember { mutableStateOf(false) }
-    var testIntegrity by remember { mutableStateOf(true) }
-    var splitSize by remember { mutableStateOf<String?>(null) } // "10MB", "50MB" or None
+    var encryptHeader by remember { mutableStateOf(false) }
+    var splitOption by remember { mutableStateOf(SplitVolumeOption.NONE) }
+    var deleteSourceFiles by remember { mutableStateOf(false) }
+    var testAfterCreation by remember { mutableStateOf(true) }
+
+    val totalInputBytes = remember(filesToCompress) { filesToCompress.sumOf { it.sizeBytes } }
+    val totalSizeFormatted = remember(totalInputBytes) { formatFileSize(totalInputBytes) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 8.dp, vertical = 16.dp),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 6.dp
@@ -48,36 +66,48 @@ fun ArchiveCompressModal(
             Column(
                 modifier = Modifier
                     .padding(20.dp)
-                    .widthIn(max = 400.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
             ) {
+                // Header
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF381F4E)),
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF1B3B2B)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.FolderZip,
                             contentDescription = null,
-                            tint = Color(0xFFD1B7FF),
-                            modifier = Modifier.size(20.dp)
+                            tint = Color(0xFF00C853),
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Zip Archive",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = if (language == AppLanguage.HINDI) "7-Zip / ZIP कंप्रेशन" else "7-Zip & ZIP Compression",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (language == AppLanguage.HINDI)
+                                "${filesToCompress.size} फाइलें चुनी गईं ($totalSizeFormatted)"
+                            else
+                                "${filesToCompress.size} files selected ($totalSizeFormatted)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Archive Name Input
+                // Archive Name
                 Text(
-                    text = if (language == AppLanguage.HINDI) "आर्काइव नाम" else "Archive Name",
+                    text = if (language == AppLanguage.HINDI) "आर्काइव का नाम" else "Archive Name",
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -86,26 +116,71 @@ fun ArchiveCompressModal(
                     value = archiveName,
                     onValueChange = { archiveName = it },
                     singleLine = true,
-                    suffix = { Text(".zip") },
+                    suffix = { Text(".${selectedFormat.extension}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // Compression level slider
+                // Format Selector (7z, ZIP, TAR, GZ, BZ2, XZ)
+                Text(
+                    text = if (language == AppLanguage.HINDI) "आर्काइव प्रारूप (Format)" else "Archive Format",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        ArchiveFormat.SEVEN_ZIP to "7z (Ultra)",
+                        ArchiveFormat.ZIP to ".ZIP",
+                        ArchiveFormat.TAR_GZ to ".tar.gz",
+                        ArchiveFormat.TAR to ".tar"
+                    ).forEach { (fmt, label) ->
+                        val isSelected = selectedFormat == fmt
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedFormat = fmt
+                                if (fmt == ArchiveFormat.SEVEN_ZIP) {
+                                    selectedMethod = CompressionMethod.LZMA2
+                                } else if (fmt == ArchiveFormat.ZIP) {
+                                    selectedMethod = CompressionMethod.DEFLATE
+                                }
+                            },
+                            label = { Text(label, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Compression Level
+                Text(
+                    text = if (language == AppLanguage.HINDI) "कंप्रेशन स्तर (Compression Level)" else "Compression Level",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (language == AppLanguage.HINDI) "कंप्रेशन स्तर (0-9):" else "Compression level (0-9):",
+                        text = if (language == AppLanguage.HINDI) selectedLevel.descriptionHi else selectedLevel.descriptionEn,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "${compressionLevel.toInt()} (${if (compressionLevel < 2) "Fast" else if (compressionLevel < 8) "Normal" else "Ultra"})",
+                        text = selectedLevel.levelName,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 13.sp
@@ -113,8 +188,18 @@ fun ArchiveCompressModal(
                 }
 
                 Slider(
-                    value = compressionLevel,
-                    onValueChange = { compressionLevel = it },
+                    value = selectedLevel.levelNumber.toFloat(),
+                    onValueChange = { v ->
+                        val num = v.toInt()
+                        selectedLevel = when {
+                            num == 0 -> CompressionLevel.STORE
+                            num in 1..2 -> CompressionLevel.FASTEST
+                            num in 3..4 -> CompressionLevel.FAST
+                            num in 5..6 -> CompressionLevel.NORMAL
+                            num in 7..8 -> CompressionLevel.MAXIMUM
+                            else -> CompressionLevel.ULTRA
+                        }
+                    },
                     valueRange = 0f..9f,
                     steps = 8,
                     colors = SliderDefaults.colors(
@@ -123,122 +208,156 @@ fun ArchiveCompressModal(
                     )
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Encryption switch & input
+                // Compression Method (LZMA2 / Deflate / PPMd)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (language == AppLanguage.HINDI) "पासवर्ड से एन्क्रिप्ट करें" else "Password Encrypt Archive",
+                        text = if (language == AppLanguage.HINDI) "कंप्रेशन मेथड:" else "Compression Method:",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Switch(
-                        checked = encryptArchive,
-                        onCheckedChange = { encryptArchive = it }
+                    Text(
+                        text = selectedMethod.displayName.substringBefore(" ("),
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
 
-                if (encryptArchive) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = passwordInput,
-                        onValueChange = { passwordInput = it },
-                        singleLine = true,
-                        placeholder = { Text(if (language == AppLanguage.HINDI) "पासवर्ड दर्ज करें" else "Enter Password") },
-                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                                Icon(
-                                    imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null
-                                )
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Password & AES Encryption
+                Text(
+                    text = if (language == AppLanguage.HINDI) "पासवर्ड सुरक्षा (AES-256)" else "Password Protection (AES-256)",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = passwordInput,
+                    onValueChange = { passwordInput = it },
+                    singleLine = true,
+                    placeholder = { Text(if (language == AppLanguage.HINDI) "पासवर्ड दर्ज करें (वैकल्पिक)" else "Enter password (optional)") },
+                    visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                            Icon(
+                                imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = "Toggle password"
+                            )
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // 7-Zip Encrypt Header Option
+                if (selectedFormat == ArchiveFormat.SEVEN_ZIP && passwordInput.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { encryptHeader = !encryptHeader },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = encryptHeader,
+                            onCheckedChange = { encryptHeader = it }
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (language == AppLanguage.HINDI) "फ़ाइलों के नाम भी एन्क्रिप्ट करें (Encrypt file names)" else "Encrypt file names (7z Header)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Integrity test (CRC32 Check) Checkbox
+                // Split Volumes
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (language == AppLanguage.HINDI) "वॉल्यूम में विभाजित करें:" else "Split to volumes:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = splitOption.displayName.substringBefore(" ("),
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Checkbox: Delete source files after archiving
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { deleteSourceFiles = !deleteSourceFiles },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(
-                        checked = testIntegrity,
-                        onCheckedChange = { testIntegrity = it }
+                        checked = deleteSourceFiles,
+                        onCheckedChange = { deleteSourceFiles = it }
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (language == AppLanguage.HINDI) "स्वचालित CRC32 अखंडता जांच" else "Run CRC32 integrity checks",
+                        text = if (language == AppLanguage.HINDI) "कंप्रेशन के बाद मूल फ़ाइलें हटाएँ" else "Delete files after archiving",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Split volumes picker
-                Text(
-                    text = if (language == AppLanguage.HINDI) "स्प्लिट वॉल्यूम (भागों में बांटें):" else "Split Volume (Multi-part):",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(null, "10MB", "50MB").forEach { opt ->
-                        val isSelected = splitSize == opt
-                        Surface(
-                            modifier = Modifier
-                                .clickable { splitSize = opt }
-                                .weight(1f),
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                        ) {
-                            Text(
-                                text = opt ?: "None (Single)",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-                        }
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                // Actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
                         Text(if (language == AppLanguage.HINDI) "रद्द करें" else "Cancel")
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
+                            val clean = archiveName.trim().ifEmpty { "Archive_Suite" }
                             onConfirm(
-                                archiveName,
-                                compressionLevel.toInt(),
-                                if (encryptArchive && passwordInput.isNotBlank()) passwordInput else null,
-                                testIntegrity,
-                                splitSize
+                                clean,
+                                selectedFormat,
+                                selectedLevel,
+                                selectedMethod,
+                                passwordInput.ifBlank { null },
+                                encryptHeader,
+                                splitOption,
+                                deleteSourceFiles
                             )
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00C853),
+                            contentColor = Color.White
+                        )
                     ) {
-                        Text(if (language == AppLanguage.HINDI) "ZIP बनाएं" else "Create ZIP")
+                        Icon(
+                            imageVector = Icons.Default.FolderZip,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (language == AppLanguage.HINDI) "कंप्रेस करें" else "Compress",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

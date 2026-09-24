@@ -138,15 +138,15 @@ fun VideoPlayerModal(
         exoPlayer.setPlaybackSpeed(playbackSpeed)
     }
 
-    // Smooth position updater ticker
+    // Smooth position updater ticker (runs only while video is playing)
     LaunchedEffect(exoPlayer, internalIsPlaying) {
-        while (true) {
+        while (internalIsPlaying) {
             if (exoPlayer.isPlaying) {
                 currentPos = (exoPlayer.currentPosition / 1000).toInt()
                 val dur = (exoPlayer.duration.coerceAtLeast(0) / 1000).toInt()
                 if (dur > 0) totalDuration = dur
             }
-            delay(500)
+            delay(1000)
         }
     }
 

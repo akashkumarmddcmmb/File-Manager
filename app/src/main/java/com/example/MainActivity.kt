@@ -494,6 +494,12 @@ private fun MainAppContent(
                             onCompressFiles = { filesList ->
                                 archiveToCompressFiles = filesList
                             },
+                            onCopyItems = { items ->
+                                viewModel.openDestinationPicker(items, ClipboardOperationType.COPY)
+                            },
+                            onMoveItems = { items ->
+                                viewModel.openDestinationPicker(items, ClipboardOperationType.MOVE)
+                            },
                             isOverlayActive = isAnyOverlayActive
                         )
                     }
@@ -697,29 +703,16 @@ private fun MainAppContent(
         ArchiveCompressModal(
             filesToCompress = archiveToCompressFiles!!,
             language = uiState.language,
-            onConfirm = { name, levelInt, pass, test, splitStr ->
-                val compLevel = when (levelInt) {
-                    0 -> CompressionLevel.STORE
-                    1, 2 -> CompressionLevel.FASTEST
-                    3, 4 -> CompressionLevel.FAST
-                    5, 6 -> CompressionLevel.NORMAL
-                    7, 8 -> CompressionLevel.MAXIMUM
-                    else -> CompressionLevel.ULTRA
-                }
-                val splitOpt = when (splitStr) {
-                    "10MB" -> SplitVolumeOption.SPLIT_10MB
-                    "50MB" -> SplitVolumeOption.SPLIT_50MB
-                    else -> SplitVolumeOption.NONE
-                }
+            onConfirm = { name, format, level, method, pass, encryptHeader, splitOpt, deleteSource ->
                 viewModel.compressFiles(
                     name = name,
-                    format = ArchiveFormat.ZIP,
-                    level = compLevel,
-                    method = CompressionMethod.DEFLATE,
+                    format = format,
+                    level = level,
+                    method = method,
                     password = pass,
-                    encryptHeader = false,
+                    encryptHeader = encryptHeader,
                     split = splitOpt,
-                    deleteSource = false
+                    deleteSource = deleteSource
                 )
                 archiveToCompressFiles = null
             },
@@ -731,11 +724,12 @@ private fun MainAppContent(
         ArchiveExtractModal(
             archiveFile = archiveToExtractFile!!,
             language = uiState.language,
-            onConfirm = { pass, test ->
+            onConfirm = { destPath, pass, createSubfolder ->
+                viewModel.openArchiveExtractDialog(archiveToExtractFile)
                 viewModel.extractArchive(
-                    destinationPath = "/storage/emulated/0/Download",
+                    destinationPath = destPath,
                     password = pass,
-                    createSubfolder = true
+                    createSubfolder = createSubfolder
                 )
                 archiveToExtractFile = null
             },
@@ -751,16 +745,61 @@ private fun MainAppContent(
                 archiveToExtractFile = archiveToViewFile
                 archiveToViewFile = null
             },
+            onTestIntegrity = {
+                viewModel.testArchiveIntegrity(archiveToViewFile)
+            },
             onDismiss = { archiveToViewFile = null }
         )
     }
 
     if (uiState.showArchiveTestResultDialog && uiState.archiveTestResult != null) {
         ArchiveTestResultModal(
-            archiveName = uiState.activeArchiveFile?.name ?: "Archive.zip",
+            archiveName = uiState.activeArchiveFile?.name ?: "Archive.7z",
+            result = uiState.archiveTestResult!!,
             language = uiState.language,
             onDismiss = { viewModel.closeArchiveTestResult() }
         )
+    }
+
+    // Folder Destination Picker Modal (Copy / Move File Operations)
+    if (uiState.showFolderDestinationPicker && uiState.pendingTransferAction != null) {
+        com.example.ui.modals.FolderPickerModal(
+            action = uiState.pendingTransferAction!!,
+            itemsToProcess = uiState.pendingTransferItems,
+            storageDevices = uiState.storageDevices,
+            language = uiState.language,
+            onConfirmDestination = { destPath ->
+                viewModel.executeTransfer(
+                    items = uiState.pendingTransferItems,
+                    destinationPath = destPath,
+                    action = uiState.pendingTransferAction!!
+                )
+            },
+            onDismiss = { viewModel.closeDestinationPicker() }
+        )
+    }
+
+    // Real-Time File Transfer & Speed Booster Progress Modal
+    if (uiState.transferProgressState.isTransferring) {
+        com.example.ui.modals.FileTransferProgressModal(
+            progressState = uiState.transferProgressState,
+            language = uiState.language,
+            onSpeedMultiplierChange = { multiplier ->
+                viewModel.setTransferSpeedMultiplier(multiplier)
+            },
+            onCancelTransfer = {
+                viewModel.cancelTransfer()
+            }
+        )
+    }
+
+    // Transfer Toast Effect
+
+    LaunchedEffect(uiState.fileTransferSuccessToast) {
+        uiState.fileTransferSuccessToast?.let { toastMsg ->
+            android.widget.Toast.makeText(context, toastMsg, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.clearTransferToast()
+        }
     }
 }
 

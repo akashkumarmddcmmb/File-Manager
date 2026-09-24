@@ -38,16 +38,20 @@ fun MiniPlayerBar(
         if (durationSeconds > 0) (positionSeconds.toFloat() / durationSeconds.toFloat()).coerceIn(0f, 1f) else 0f
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "disc_spin")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
+    val rotation by if (isPlaying) {
+        val infiniteTransition = rememberInfiniteTransition(label = "disc_spin")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 4000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "rotation"
+        )
+    } else {
+        remember { mutableFloatStateOf(0f) }
+    }
 
     Surface(
         modifier = modifier

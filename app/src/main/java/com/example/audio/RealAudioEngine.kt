@@ -32,7 +32,7 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
                         val durSec = if (durMs > 0) (durMs / 1000) else currentDurationSeconds
                         currentPositionSeconds = posSec
                         progressListener?.invoke(posSec, durSec, true)
-                        handler.postDelayed(this, 500)
+                        handler.postDelayed(this, 1000)
                         return
                     }
                 }

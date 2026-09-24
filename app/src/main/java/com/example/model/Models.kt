@@ -133,6 +133,7 @@ fun formatFileSize(bytes: Long): String {
 }
 
 enum class ArchiveFormat(val extension: String, val displayName: String, val supportsEncryption: Boolean) {
+    SEVEN_ZIP("7z", "7-Zip (.7z)", true),
     ZIP("zip", ".ZIP (.zip)", true),
     TAR("tar", "TAR (.tar)", false),
     TAR_GZ("tar.gz", "GZip (.tar.gz)", false),
@@ -207,3 +208,51 @@ data class ArchiveTestResult(
     val durationMs: Long,
     val details: List<String>
 )
+
+data class FolderDisplayItem(
+    val name: String,
+    val path: String,
+    val itemCount: Int = 0,
+    val dateModified: Long = System.currentTimeMillis()
+)
+
+enum class ClipboardOperationType {
+    COPY,
+    MOVE
+}
+
+data class ClipboardItem(
+    val path: String,
+    val name: String,
+    val isFolder: Boolean,
+    val sizeBytes: Long = 0L,
+    val fileItem: FileItem? = null
+)
+
+data class ClipboardState(
+    val action: ClipboardOperationType = ClipboardOperationType.COPY,
+    val items: List<ClipboardItem> = emptyList(),
+    val isActive: Boolean = false
+) {
+    val totalBytes: Long
+        get() = items.sumOf { it.sizeBytes }
+    val formattedTotalSize: String
+        get() = formatFileSize(totalBytes)
+}
+
+data class TransferProgressState(
+    val isTransferring: Boolean = false,
+    val action: ClipboardOperationType = ClipboardOperationType.COPY,
+    val currentFileName: String = "",
+    val currentFileIndex: Int = 0,
+    val totalFilesCount: Int = 0,
+    val bytesTransferred: Long = 0L,
+    val totalBytesToTransfer: Long = 0L,
+    val progress: Float = 0f,
+    val speedBytesPerSec: Long = 0L,
+    val speedFormatted: String = "0.0 MB/s",
+    val speedMultiplier: Int = 1, // 1x, 2x, 5x, 10x Turbo
+    val estimatedTimeRemainingSec: Long = 0L,
+    val isCancelled: Boolean = false
+)
+

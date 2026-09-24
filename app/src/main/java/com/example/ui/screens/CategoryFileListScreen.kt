@@ -65,6 +65,8 @@ fun CategoryFileListScreen(
     onMoveToTrash: (String) -> Unit,
     onMoveToSafeFolder: (String) -> Unit,
     onCompressFiles: (List<FileItem>) -> Unit = {},
+    onCopyItems: (List<ClipboardItem>) -> Unit = {},
+    onMoveItems: (List<ClipboardItem>) -> Unit = {},
     isOverlayActive: Boolean = false
 ) {
     var isGridView by remember { mutableStateOf(false) }
@@ -510,6 +512,46 @@ fun CategoryFileListScreen(
                                     expanded = showSelectionMenu,
                                     onDismissRequest = { showSelectionMenu = false }
                                 ) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (language == AppLanguage.HINDI) "यहाँ कॉपी करें (Copy to...)" else "Copy to...") },
+                                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF00C853)) },
+                                        onClick = {
+                                            showSelectionMenu = false
+                                            val itemsToCopy = mutableListOf<ClipboardItem>()
+                                            selectedFolderPaths.forEach { path ->
+                                                itemsToCopy.add(ClipboardItem(path = path, name = File(path).name, isFolder = true))
+                                            }
+                                            selectedFileIds.forEach { id ->
+                                                displayedFiles.firstOrNull { it.id == id }?.let { f ->
+                                                    itemsToCopy.add(ClipboardItem(path = f.path, name = f.name, isFolder = false, sizeBytes = f.sizeBytes, fileItem = f))
+                                                }
+                                            }
+                                            if (itemsToCopy.isNotEmpty()) {
+                                                onCopyItems(itemsToCopy)
+                                            }
+                                            clearSelection()
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (language == AppLanguage.HINDI) "यहाँ ले जाएँ (Move to...)" else "Move to...") },
+                                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color(0xFFFF9800)) },
+                                        onClick = {
+                                            showSelectionMenu = false
+                                            val itemsToMove = mutableListOf<ClipboardItem>()
+                                            selectedFolderPaths.forEach { path ->
+                                                itemsToMove.add(ClipboardItem(path = path, name = File(path).name, isFolder = true))
+                                            }
+                                            selectedFileIds.forEach { id ->
+                                                displayedFiles.firstOrNull { it.id == id }?.let { f ->
+                                                    itemsToMove.add(ClipboardItem(path = f.path, name = f.name, isFolder = false, sizeBytes = f.sizeBytes, fileItem = f))
+                                                }
+                                            }
+                                            if (itemsToMove.isNotEmpty()) {
+                                                onMoveItems(itemsToMove)
+                                            }
+                                            clearSelection()
+                                        }
+                                    )
                                     DropdownMenuItem(
                                         text = { Text("Zip Archive", fontWeight = FontWeight.SemiBold) },
                                         leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null, tint = Color(0xFF00C853)) },

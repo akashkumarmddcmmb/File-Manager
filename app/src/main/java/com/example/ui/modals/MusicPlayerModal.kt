@@ -65,16 +65,20 @@ fun MusicPlayerModal(
     var showSpeedSelector by remember { mutableStateOf(false) }
     var showInfoModal by remember { mutableStateOf(false) }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "music_vinyl_spin")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(6000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
+    val rotation by if (isPlaying) {
+        val infiniteTransition = rememberInfiniteTransition(label = "music_vinyl_spin")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(6000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "rotation"
+        )
+    } else {
+        remember { mutableFloatStateOf(0f) }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -607,16 +611,20 @@ fun MusicPlayerModal(
 
 @Composable
 private fun WaveFormVisualizer(isPlaying: Boolean, position: Int) {
-    val infiniteTransition = rememberInfiniteTransition(label = "wave_anim")
-    val phase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 6.283185f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
+    val phase by if (isPlaying) {
+        val infiniteTransition = rememberInfiniteTransition(label = "wave_anim")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 6.283185f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1400, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "phase"
+        )
+    } else {
+        remember { mutableFloatStateOf(0f) }
+    }
 
     Canvas(
         modifier = Modifier
