@@ -12,20 +12,14 @@ import kotlin.math.sin
 
 object AudioSampleGenerator {
     private const val TAG = "AudioSampleGenerator"
-    private const val SAMPLE_RATE = 16000
-    private const val DURATION_SECONDS = 180
+    private const val SAMPLE_RATE = 11025 // Lightweight sample rate
+    private const val DURATION_SECONDS = 5    // Lightweight 5s wave length is perfect for instant play
     private val generatedCache = ConcurrentHashMap<Int, File>()
     private val precomputedWaveBytes = ConcurrentHashMap<Int, ByteArray>()
 
+    // No synchronous init blocking! Class loads instantly (<1 microsecond) without freezing threads.
     init {
-        // Pre-compute pure audio wave PCM data for all styles in memory for instant delivery
-        try {
-            for (style in 0..5) {
-                precomputedWaveBytes[style] = buildPcmDataForStyle(style)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error pre-computing wave data: ${e.message}")
-        }
+        // Lightweight empty initializer
     }
 
     /**
@@ -52,7 +46,10 @@ object AudioSampleGenerator {
         }
 
         try {
-            val pcm = precomputedWaveBytes[styleIndex] ?: buildPcmDataForStyle(styleIndex)
+            // Lazy, on-demand generation ensures zero overhead during real file plays
+            val pcm = precomputedWaveBytes.getOrPut(styleIndex) {
+                buildPcmDataForStyle(styleIndex)
+            }
             FileOutputStream(sampleFile).use { fos ->
                 writeWavHeader(fos, pcm.size, SAMPLE_RATE, 1, 16)
                 fos.write(pcm)

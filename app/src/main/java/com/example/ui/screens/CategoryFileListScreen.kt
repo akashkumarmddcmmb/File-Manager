@@ -78,6 +78,13 @@ fun CategoryFileListScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    var folderActionTrigger by remember { mutableStateOf(0) }
+    var showRenameFolderDialog by remember { mutableStateOf(false) }
+    var folderToRename by remember { mutableStateOf<FolderDisplayItem?>(null) }
+    var renameFolderInput by remember { mutableStateOf("") }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var folderToDelete by remember { mutableStateOf<FolderDisplayItem?>(null) }
+
     // Multi-Selection State (मल्टी-सेलेक्शन मोड)
     val selectedFolderPaths = remember { mutableStateListOf<String>() }
     val selectedFileIds = remember { mutableStateListOf<String>() }
@@ -230,7 +237,7 @@ fun CategoryFileListScreen(
     }
 
     val (displayedFolders, displayedFiles) = remember(
-        category, storageDevice, currentFolderPath, files, customFolders.size, searchQuery
+        category, storageDevice, currentFolderPath, files, customFolders.size, searchQuery, folderActionTrigger
     ) {
         if (category != null) {
             val matchingFiles = files.filter { file ->
@@ -273,7 +280,7 @@ fun CategoryFileListScreen(
                                     ext in listOf("mp3", "flac", "wav", "m4a", "ogg", "aac", "wma", "amr") -> FileCategoryType.AUDIO
                                     ext in listOf("pdf", "doc", "docx", "xls", "xlsx", "txt", "ppt", "pptx", "vcf", "vcard", "csv") -> FileCategoryType.DOCUMENTS
                                     ext in listOf("apk", "xapk") -> FileCategoryType.APPS
-                                    ext in listOf("zip", "7z", "rar", "tar", "gz") -> FileCategoryType.ARCHIVES
+                                    ext in listOf("zip", "7z", "tar", "gz", "bz2", "xz") -> FileCategoryType.ARCHIVES
                                     else -> FileCategoryType.DOWNLOADS
                                 }
                                 filesList.add(
@@ -985,6 +992,53 @@ fun CategoryFileListScreen(
                                             tint = if (isFolderSelected) MaterialTheme.colorScheme.primary else Color.Gray,
                                             modifier = Modifier.size(22.dp)
                                         )
+                                    } else {
+                                        var showFolderMenu by remember { mutableStateOf(false) }
+                                        Box {
+                                            IconButton(
+                                                onClick = { showFolderMenu = true },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.MoreVert,
+                                                    contentDescription = "Folder Options",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            DropdownMenu(
+                                                expanded = showFolderMenu,
+                                                onDismissRequest = { showFolderMenu = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text(if (language == AppLanguage.HINDI) "खोलें (Open)" else "Open Folder") },
+                                                    leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFFFFC107)) },
+                                                    onClick = {
+                                                        showFolderMenu = false
+                                                        currentFolderPath = folder.path
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(if (language == AppLanguage.HINDI) "नाम बदलें" else "Rename") },
+                                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF00C853)) },
+                                                    onClick = {
+                                                        showFolderMenu = false
+                                                        folderToRename = folder
+                                                        renameFolderInput = folder.name
+                                                        showRenameFolderDialog = true
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(if (language == AppLanguage.HINDI) "हटाएं (Delete)" else "Delete Folder") },
+                                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD93025)) },
+                                                    onClick = {
+                                                        showFolderMenu = false
+                                                        folderToDelete = folder
+                                                        showDeleteConfirmDialog = true
+                                                    }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -1107,18 +1161,105 @@ fun CategoryFileListScreen(
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = file.name,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = file.formattedSize,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = file.name,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = file.formattedSize,
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    if (!isSelectionMode) {
+                                        var showMenu by remember { mutableStateOf(false) }
+                                        Box {
+                                            IconButton(
+                                                onClick = { showMenu = true },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.MoreVert,
+                                                    contentDescription = "More Options",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            DropdownMenu(
+                                                expanded = showMenu,
+                                                onDismissRequest = { showMenu = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            if (file.isStarred) {
+                                                                if (language == AppLanguage.HINDI) "तारांकित से हटाएं" else "Remove Star"
+                                                            } else {
+                                                                if (language == AppLanguage.HINDI) "तारांकित में जोड़ें" else "Add to Starred"
+                                                            }
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = if (file.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                                                            contentDescription = null,
+                                                            tint = if (file.isStarred) Color(0xFFF9AB00) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        showMenu = false
+                                                        onToggleStar(file.id)
+                                                    }
+                                                )
+                                                if (file.category == FileCategoryType.DOCUMENTS || file.extension.lowercase() in listOf("pdf", "doc", "docx", "txt")) {
+                                                    DropdownMenuItem(
+                                                        text = { Text(if (language == AppLanguage.HINDI) "प्रिंट करें" else "Print") },
+                                                        leadingIcon = { Icon(Icons.Default.Print, contentDescription = null, tint = Color(0xFF0288D1)) },
+                                                        onClick = {
+                                                            showMenu = false
+                                                            scope.launch {
+                                                                try {
+                                                                    val pdf = PdfDocumentManager.getOrCreatePdfFile(context, file)
+                                                                    val ok = PdfDocumentManager.printPdfDocument(context, pdf, file.name)
+                                                                    if (!ok) {
+                                                                        Toast.makeText(context, if (language == AppLanguage.HINDI) "प्रिंटिंग शुरू नहीं हो सकी" else "Unable to start printing", Toast.LENGTH_SHORT).show()
+                                                                    }
+                                                                } catch (e: Exception) {
+                                                                    Toast.makeText(context, "Print error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                                }
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                                DropdownMenuItem(
+                                                    text = { Text(if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर में भेजें" else "Move to Safe folder") },
+                                                    leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF00C853)) },
+                                                    onClick = {
+                                                        showMenu = false
+                                                        onMoveToSafeFolder(file.id)
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(if (language == AppLanguage.HINDI) "ट्रैश में भेजें" else "Move to Trash") },
+                                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD93025)) },
+                                                    onClick = {
+                                                        showMenu = false
+                                                        onMoveToTrash(file.id)
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1196,11 +1337,48 @@ fun CategoryFileListScreen(
                                         modifier = Modifier.size(24.dp)
                                     )
                                 } else {
-                                    Icon(
-                                        imageVector = Icons.Default.ChevronRight,
-                                        contentDescription = "Open",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    var showFolderMenu by remember { mutableStateOf(false) }
+                                    Box {
+                                        IconButton(onClick = { showFolderMenu = true }) {
+                                            Icon(
+                                                imageVector = Icons.Default.MoreVert,
+                                                contentDescription = "Folder Options",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = showFolderMenu,
+                                            onDismissRequest = { showFolderMenu = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text(if (language == AppLanguage.HINDI) "खोलें (Open)" else "Open Folder") },
+                                                leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFFFFC107)) },
+                                                onClick = {
+                                                    showFolderMenu = false
+                                                    currentFolderPath = folder.path
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(if (language == AppLanguage.HINDI) "नाम बदलें" else "Rename") },
+                                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF00C853)) },
+                                                onClick = {
+                                                    showFolderMenu = false
+                                                    folderToRename = folder
+                                                    renameFolderInput = folder.name
+                                                    showRenameFolderDialog = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(if (language == AppLanguage.HINDI) "हटाएं (Delete)" else "Delete Folder") },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD93025)) },
+                                                onClick = {
+                                                    showFolderMenu = false
+                                                    folderToDelete = folder
+                                                    showDeleteConfirmDialog = true
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1471,6 +1649,145 @@ fun CategoryFileListScreen(
                     onClick = {
                         showCreateFolderDialog = false
                         newFolderNameInput = ""
+                    }
+                ) {
+                    Text(if (language == AppLanguage.HINDI) "रद्द करें" else "Cancel")
+                }
+            }
+        )
+    }
+
+    if (showRenameFolderDialog && folderToRename != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showRenameFolderDialog = false
+                folderToRename = null
+                renameFolderInput = ""
+            },
+            title = {
+                Text(
+                    text = if (language == AppLanguage.HINDI) "फ़ोल्डर का नाम बदलें" else "Rename Folder",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = renameFolderInput,
+                        onValueChange = { renameFolderInput = it },
+                        label = { Text(if (language == AppLanguage.HINDI) "नया नाम" else "New Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newName = renameFolderInput.trim()
+                        val currentFolder = folderToRename
+                        if (newName.isNotBlank() && currentFolder != null) {
+                            val srcFile = File(currentFolder.path)
+                            val destFile = File(srcFile.parentFile, newName)
+                            var success = false
+                            if (srcFile.exists() && !destFile.exists()) {
+                                try {
+                                    success = srcFile.renameTo(destFile)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                            if (success) {
+                                val idx = customFolders.indexOfFirst { it.path == currentFolder.path }
+                                if (idx != -1) {
+                                    val oldFolder = customFolders[idx]
+                                    customFolders[idx] = oldFolder.copy(name = newName, path = destFile.absolutePath)
+                                }
+                                folderActionTrigger++
+                                Toast.makeText(context, if (language == AppLanguage.HINDI) "फ़ोल्डर का नाम बदला गया" else "Folder renamed successfully", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, if (language == AppLanguage.HINDI) "नाम नहीं बदला जा सका" else "Failed to rename folder", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        showRenameFolderDialog = false
+                        folderToRename = null
+                        renameFolderInput = ""
+                    }
+                ) {
+                    Text(if (language == AppLanguage.HINDI) "बदलें" else "Rename")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRenameFolderDialog = false
+                        folderToRename = null
+                        renameFolderInput = ""
+                    }
+                ) {
+                    Text(if (language == AppLanguage.HINDI) "रद्द करें" else "Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteConfirmDialog && folderToDelete != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteConfirmDialog = false
+                folderToDelete = null
+            },
+            title = {
+                Text(
+                    text = if (language == AppLanguage.HINDI) "फ़ोल्डर हटाएं?" else "Delete Folder?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = if (language == AppLanguage.HINDI) 
+                        "क्या आप सचमुच फ़ोल्डर '${folderToDelete?.name}' और उसकी सभी फ़ाइलों को हमेशा के लिए हटाना चाहते हैं? यह प्रक्रिया वापस नहीं ली जा सकती।" 
+                        else 
+                        "Are you sure you want to delete '${folderToDelete?.name}' and all its contents permanently? This action cannot be undone."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val currentFolder = folderToDelete
+                        if (currentFolder != null) {
+                            val folderFile = File(currentFolder.path)
+                            var success = false
+                            if (folderFile.exists()) {
+                                try {
+                                    success = folderFile.deleteRecursively()
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            } else {
+                                success = true
+                            }
+                            if (success) {
+                                customFolders.removeAll { it.path == currentFolder.path }
+                                folderActionTrigger++
+                                Toast.makeText(context, if (language == AppLanguage.HINDI) "फ़ोल्डर हटा दिया गया" else "Folder deleted", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, if (language == AppLanguage.HINDI) "हटाया नहीं जा सका" else "Failed to delete folder", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        showDeleteConfirmDialog = false
+                        folderToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD93025), contentColor = Color.White)
+                ) {
+                    Text(if (language == AppLanguage.HINDI) "हटाएं" else "Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        folderToDelete = null
                     }
                 ) {
                     Text(if (language == AppLanguage.HINDI) "रद्द करें" else "Cancel")

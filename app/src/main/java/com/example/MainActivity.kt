@@ -302,7 +302,7 @@ private fun MainAppContent(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            GoogleDrawer(
+            MainDrawer(
                 currentTab = uiState.currentTab,
                 language = uiState.language,
                 onSelectTab = { tab ->
@@ -353,7 +353,7 @@ private fun MainAppContent(
             topBar = {
                 if (currentScreen == AppNavScreen.MAIN_TABS) {
                     Column(modifier = Modifier.statusBarsPadding()) {
-                        GoogleHeader(
+                        AppHeader(
                             searchQuery = uiState.searchQuery,
                             onSearchQueryChange = { viewModel.setSearchQuery(it) },
                             onMenuClick = { coroutineScope.launch { drawerState.open() } },
@@ -870,7 +870,7 @@ private fun handleOpenFile(
                 ext in listOf("pdf", "txt", "doc", "docx", "xls") -> {
                     onOpenPdf(file)
                 }
-                ext in listOf("zip", "7z", "rar") -> {
+                ext in listOf("zip", "7z", "tar", "gz", "bz2", "xz") -> {
                     onOpenArchive(file)
                 }
                 else -> {

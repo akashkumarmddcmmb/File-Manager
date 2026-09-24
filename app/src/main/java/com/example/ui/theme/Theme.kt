@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 
 // Files Official Emerald Green Palette (Matching the App Icon #00C853)
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF00C853),             // Google Files Emerald Green
+    primary = Color(0xFF00C853),             // Official Emerald Green
     onPrimary = Color.Black,
     primaryContainer = Color(0xFF1B382B),    // Dark Emerald Pill Container
     onPrimaryContainer = Color(0xFF00C853),  // Vibrant Green Text & Icon
@@ -15,7 +15,7 @@ private val DarkColorScheme = darkColorScheme(
     onSecondary = Color.Black,
     secondaryContainer = Color(0xFF1B382B),
     onSecondaryContainer = Color(0xFF00C853),
-    tertiary = Color(0xFFF9AB00),            // Google Yellow
+    tertiary = Color(0xFFF9AB00),            // Vivid Yellow
     background = Color(0xFF121316),
     onBackground = Color(0xFFE2E2E6),
     surface = Color(0xFF1E1F23),
@@ -26,7 +26,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF00C853),             // Google Files Emerald Green
+    primary = Color(0xFF00C853),             // Official Emerald Green
     onPrimary = Color.White,
     primaryContainer = Color(0xFFE8F5E9),    // Soft Light Green Container
     onPrimaryContainer = Color(0xFF004D20),

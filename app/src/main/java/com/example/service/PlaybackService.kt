@@ -18,6 +18,11 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         
+        // Set custom notification provider with a transparent small icon to prevent badge overlay on system lockscreen / media drawer
+        val customProvider = androidx.media3.session.DefaultMediaNotificationProvider(this)
+        customProvider.setSmallIcon(com.example.R.drawable.media3_notification_small_icon)
+        setMediaNotificationProvider(customProvider)
+
         // Build ExoPlayer with ultra-fast LoadControl for instant playback (<50ms buffer)
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)

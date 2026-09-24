@@ -2,8 +2,12 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -44,22 +48,84 @@ fun StoragePermissionGate(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showAllFilesPermissionDialog by remember { mutableStateOf(false) }
     
-    // Check if permission gate was previously passed or runtime permissions are already granted
+    // Check if permission gate was previously passed and runtime permissions are currently granted.
+    // If they revoked the permission, we want to show the permission screen again!
     val isAlreadyPassed = remember {
-        hasPermission || prefs.getBoolean("permission_gate_passed", false) || checkRuntimePermissionsGranted(context)
+        prefs.getBoolean("permission_gate_passed", false) && checkRuntimePermissionsGranted(context)
     }
 
     var isInitialGatePassed by remember { mutableStateOf(isAlreadyPassed) }
 
+    // Track which action was requested when launching permissions
+    var pendingAction by remember { mutableStateOf(PendingPermissionAction.NONE) }
+
+    // Launcher for settings-based All Files Access (Phone Memory & SD Card)
+    val allFilesSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        val bothGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager() && checkStandardPermissionsGranted(context)
+        } else {
+            checkStandardPermissionsGranted(context)
+        }
+
+        if (bothGranted) {
+            prefs.edit().putBoolean("permission_gate_passed", true).apply()
+            isInitialGatePassed = true
+            when (pendingAction) {
+                PendingPermissionAction.CLEAN -> onOpenClean()
+                PendingPermissionAction.SAFE_FOLDER -> onOpenSafeFolder()
+                else -> onPermissionGranted()
+            }
+        } else {
+            val deniedMsg = if (language == AppLanguage.HINDI) {
+                "फ़ोन मेमोरी और एसडी कार्ड की अनुमति नहीं मिली!"
+            } else {
+                "Phone memory and SD Card access permission not granted!"
+            }
+            android.widget.Toast.makeText(context, deniedMsg, android.widget.Toast.LENGTH_LONG).show()
+        }
+        pendingAction = PendingPermissionAction.NONE
+    }
+
     // Launcher for standard initial Android native runtime permissions
     val runtimePermissionsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        // Save flag permanently so this screen never appears again on future app opens
-        prefs.edit().putBoolean("permission_gate_passed", true).apply()
-        isInitialGatePassed = true
-        onPermissionGranted()
+    ) { results ->
+        // Check if critical storage permissions are actually granted
+        val isGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            results[Manifest.permission.READ_MEDIA_AUDIO] == true ||
+            results[Manifest.permission.READ_MEDIA_VIDEO] == true ||
+            results[Manifest.permission.READ_MEDIA_IMAGES] == true
+        } else {
+            results[Manifest.permission.READ_EXTERNAL_STORAGE] == true
+        }
+
+        if (isGranted) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+                showAllFilesPermissionDialog = true
+            } else {
+                prefs.edit().putBoolean("permission_gate_passed", true).apply()
+                isInitialGatePassed = true
+                when (pendingAction) {
+                    PendingPermissionAction.CLEAN -> onOpenClean()
+                    PendingPermissionAction.SAFE_FOLDER -> onOpenSafeFolder()
+                    else -> onPermissionGranted()
+                }
+                pendingAction = PendingPermissionAction.NONE
+            }
+        } else {
+            // Permission denied! Keep user on onboarding screen, show informative message
+            val deniedMsg = if (language == AppLanguage.HINDI) {
+                "स्टोरेज की अनुमति नहीं दी गई! कृपया काम करने के लिए अनुमति दें।"
+            } else {
+                "Storage permission was denied! Please grant permission to proceed."
+            }
+            android.widget.Toast.makeText(context, deniedMsg, android.widget.Toast.LENGTH_LONG).show()
+            pendingAction = PendingPermissionAction.NONE
+        }
     }
 
     if (isInitialGatePassed) {
@@ -86,12 +152,27 @@ fun StoragePermissionGate(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Green Folder Badge
+                        // Green Folder Badge (Now interactive and requests permission)
                         Box(
                             modifier = Modifier
                                 .size(88.dp)
                                 .clip(RoundedCornerShape(28.dp))
-                                .background(Color(0xFF00C853)),
+                                .background(Color(0xFF00C853))
+                                .clickable {
+                                    if (checkRuntimePermissionsGranted(context)) {
+                                        prefs.edit().putBoolean("permission_gate_passed", true).apply()
+                                        isInitialGatePassed = true
+                                        onPermissionGranted()
+                                    } else {
+                                        if (checkStandardPermissionsGranted(context)) {
+                                            pendingAction = PendingPermissionAction.DEFAULT
+                                            showAllFilesPermissionDialog = true
+                                        } else {
+                                            pendingAction = PendingPermissionAction.DEFAULT
+                                            triggerNativeSystemPermissions(runtimePermissionsLauncher)
+                                        }
+                                    }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -147,10 +228,18 @@ fun StoragePermissionGate(
                                 // Feature 1: Storage Scan
                                 Surface(
                                     onClick = {
-                                        prefs.edit().putBoolean("permission_gate_passed", true).apply()
-                                        triggerNativeSystemPermissions(runtimePermissionsLauncher) {
+                                        if (checkRuntimePermissionsGranted(context)) {
+                                            prefs.edit().putBoolean("permission_gate_passed", true).apply()
                                             isInitialGatePassed = true
                                             onOpenClean()
+                                        } else {
+                                            if (checkStandardPermissionsGranted(context)) {
+                                                pendingAction = PendingPermissionAction.CLEAN
+                                                showAllFilesPermissionDialog = true
+                                            } else {
+                                                pendingAction = PendingPermissionAction.CLEAN
+                                                triggerNativeSystemPermissions(runtimePermissionsLauncher)
+                                            }
                                         }
                                     },
                                     shape = RoundedCornerShape(16.dp),
@@ -205,10 +294,18 @@ fun StoragePermissionGate(
                                 // Feature 2: Safe Folder
                                 Surface(
                                     onClick = {
-                                        prefs.edit().putBoolean("permission_gate_passed", true).apply()
-                                        triggerNativeSystemPermissions(runtimePermissionsLauncher) {
+                                        if (checkRuntimePermissionsGranted(context)) {
+                                            prefs.edit().putBoolean("permission_gate_passed", true).apply()
                                             isInitialGatePassed = true
                                             onOpenSafeFolder()
+                                        } else {
+                                            if (checkStandardPermissionsGranted(context)) {
+                                                pendingAction = PendingPermissionAction.SAFE_FOLDER
+                                                showAllFilesPermissionDialog = true
+                                            } else {
+                                                pendingAction = PendingPermissionAction.SAFE_FOLDER
+                                                triggerNativeSystemPermissions(runtimePermissionsLauncher)
+                                            }
                                         }
                                     },
                                     shape = RoundedCornerShape(16.dp),
@@ -320,10 +417,18 @@ fun StoragePermissionGate(
                     // Green Pill Grant Button ("अनुमति दें")
                     Button(
                         onClick = {
-                            prefs.edit().putBoolean("permission_gate_passed", true).apply()
-                            triggerNativeSystemPermissions(runtimePermissionsLauncher) {
+                            if (checkRuntimePermissionsGranted(context)) {
+                                prefs.edit().putBoolean("permission_gate_passed", true).apply()
                                 isInitialGatePassed = true
                                 onPermissionGranted()
+                            } else {
+                                if (checkStandardPermissionsGranted(context)) {
+                                    pendingAction = PendingPermissionAction.DEFAULT
+                                    showAllFilesPermissionDialog = true
+                                } else {
+                                    pendingAction = PendingPermissionAction.DEFAULT
+                                    triggerNativeSystemPermissions(runtimePermissionsLauncher)
+                                }
                             }
                         },
                         modifier = Modifier
@@ -422,13 +527,73 @@ fun StoragePermissionGate(
                 textContentColor = Color.White
             )
         }
+
+        if (showAllFilesPermissionDialog) {
+            AlertDialog(
+                onDismissRequest = { showAllFilesPermissionDialog = false },
+                icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFF00C853)) },
+                title = {
+                    Text(
+                        text = if (language == AppLanguage.HINDI) "फ़ोन मेमोरी और SD कार्ड एक्सेस आवश्यक है" else "Phone Memory & SD Card Access Required",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        textAlign = TextAlign.Center
+                    )
+                },
+                text = {
+                    Text(
+                        text = if (language == AppLanguage.HINDI) {
+                            "सभी फाइलों (म्यूजिक, फोटो, वीडियो और एसडी कार्ड) को पूरी तरह से स्कैन करने और व्यवस्थित करने के लिए, कृपया सेटिंग में 'सभी फाइलों तक पहुंच' (All Files Access) की अनुमति चालू करें।"
+                        } else {
+                            "To completely scan, play music, and manage files on both your Phone Memory and external SD Card, please enable 'All Files Access' permission in the system settings."
+                        },
+                        fontSize = 14.sp,
+                        color = Color(0xFFE0E0E0),
+                        textAlign = TextAlign.Center
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showAllFilesPermissionDialog = false
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                try {
+                                    allFilesSettingsLauncher.launch(intent)
+                                } catch (e: Exception) {
+                                    val fallbackIntent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                    try {
+                                        allFilesSettingsLauncher.launch(fallbackIntent)
+                                    } catch (ex: Exception) {
+                                        // Safe catch
+                                    }
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00C853),
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Text(if (language == AppLanguage.HINDI) "सेटिंग में जाएं" else "Go to Settings", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAllFilesPermissionDialog = false }) {
+                        Text(if (language == AppLanguage.HINDI) "बाद में" else "Later", color = Color(0xFF9E9E9E))
+                    }
+                },
+                containerColor = Color(0xFF1E1F23),
+                titleContentColor = Color.White,
+                textContentColor = Color.White
+            )
+        }
     }
 }
 
-private fun checkRuntimePermissionsGranted(context: Context): Boolean {
-    val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-    if (prefs.getBoolean("permission_gate_passed", false)) return true
-
+private fun checkStandardPermissionsGranted(context: Context): Boolean {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED ||
@@ -438,9 +603,18 @@ private fun checkRuntimePermissionsGranted(context: Context): Boolean {
     }
 }
 
+private fun checkRuntimePermissionsGranted(context: Context): Boolean {
+    val hasStandard = checkStandardPermissionsGranted(context)
+    val hasAllFilesAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Environment.isExternalStorageManager()
+    } else {
+        true
+    }
+    return hasStandard && hasAllFilesAccess
+}
+
 private fun triggerNativeSystemPermissions(
-    launcher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
-    onDone: () -> Unit
+    launcher: androidx.activity.result.ActivityResultLauncher<Array<String>>
 ) {
     val permsList = mutableListOf<String>()
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -454,6 +628,13 @@ private fun triggerNativeSystemPermissions(
     try {
         launcher.launch(permsList.toTypedArray())
     } catch (e: Exception) {
-        onDone()
+        // Safe catch block
     }
+}
+
+enum class PendingPermissionAction {
+    NONE,
+    DEFAULT,
+    CLEAN,
+    SAFE_FOLDER
 }

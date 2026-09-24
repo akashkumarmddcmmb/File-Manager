@@ -362,7 +362,7 @@ object FileOperationsEngine {
                     ext in listOf("mp3", "flac", "wav", "m4a", "ogg", "aac") -> FileCategoryType.AUDIO
                     ext in listOf("pdf", "doc", "docx", "xls", "xlsx", "txt", "ppt", "pptx", "csv") -> FileCategoryType.DOCUMENTS
                     ext in listOf("apk", "xapk") -> FileCategoryType.APPS
-                    ext in listOf("zip", "7z", "rar", "tar", "gz") -> FileCategoryType.ARCHIVES
+                    ext in listOf("zip", "7z", "tar", "gz", "bz2", "xz") -> FileCategoryType.ARCHIVES
                     else -> FileCategoryType.DOWNLOADS
                 }
 
@@ -618,7 +618,7 @@ object FileOperationsEngine {
                     ext in listOf("mp3", "flac", "wav", "m4a", "ogg", "aac") -> FileCategoryType.AUDIO
                     ext in listOf("pdf", "doc", "docx", "xls", "xlsx", "txt", "ppt", "pptx", "csv") -> FileCategoryType.DOCUMENTS
                     ext in listOf("apk", "xapk") -> FileCategoryType.APPS
-                    ext in listOf("zip", "7z", "rar", "tar", "gz") -> FileCategoryType.ARCHIVES
+                    ext in listOf("zip", "7z", "tar", "gz", "bz2", "xz") -> FileCategoryType.ARCHIVES
                     else -> FileCategoryType.DOWNLOADS
                 }
 

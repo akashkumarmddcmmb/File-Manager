@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
 
 @Composable
-fun GoogleHeader(
+fun AppHeader(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onMenuClick: () -> Unit,
@@ -57,18 +57,18 @@ fun GoogleHeader(
                 )
             }
 
-            // Google Files 4-color folder accent icon
+            // Folder accent brand icon
             Box(
                 modifier = Modifier
                     .size(28.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF1A73E8).copy(alpha = 0.15f)),
+                    .background(Color(0xFF00C853).copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.Folder,
                     contentDescription = null,
-                    tint = Color(0xFF1A73E8),
+                    tint = Color(0xFF00C853),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -140,7 +140,7 @@ fun GoogleHeader(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF1A73E8))
+                    .background(Color(0xFF00C853))
                     .clickable(onClick = onProfileClick),
                 contentAlignment = Alignment.Center
             ) {
@@ -151,8 +151,6 @@ fun GoogleHeader(
                     color = Color.White
                 )
             }
-
-            Spacer(modifier = Modifier.width(4.dp))
         }
     }
 }

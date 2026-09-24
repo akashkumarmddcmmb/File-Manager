@@ -28,7 +28,7 @@ import com.example.model.getTabTitle
 import com.example.model.getTrashText
 
 @Composable
-fun GoogleDrawer(
+fun MainDrawer(
     currentTab: MainTab,
     language: AppLanguage,
     onSelectTab: (MainTab) -> Unit,
@@ -41,7 +41,7 @@ fun GoogleDrawer(
     onOpenHelp: () -> Unit,
     onCloseDrawer: () -> Unit
 ) {
-    GoogleDrawerContent(
+    MainDrawerContent(
         currentTab = currentTab,
         language = language,
         onTabSelected = onSelectTab,
@@ -60,7 +60,7 @@ fun GoogleDrawer(
 }
 
 @Composable
-fun GoogleDrawerContent(
+fun MainDrawerContent(
     currentTab: MainTab,
     language: AppLanguage,
     onTabSelected: (MainTab) -> Unit,
@@ -102,12 +102,12 @@ fun GoogleDrawerContent(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilesBrandLogo(modifier = Modifier.size(36.dp))
+                    AppBrandLogo(modifier = Modifier.size(36.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = if (language == AppLanguage.HINDI) "फाइल्स" else "Files",
+                                text = if (language == AppLanguage.HINDI) "फाइल मैनेजर" else "File Manager",
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 20.sp
@@ -160,7 +160,7 @@ fun GoogleDrawerContent(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1A73E8)),
+                            .background(Color(0xFF00C853)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -178,7 +178,7 @@ fun GoogleDrawerContent(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Google / Microsoft",
+                            text = if (language == AppLanguage.HINDI) "बैकअप अकाउंट" else "Backup Account",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -254,7 +254,7 @@ fun GoogleDrawerContent(
 
             DrawerActionItem(
                 icon = Icons.Filled.Storage,
-                iconTint = Color(0xFF1A73E8),
+                iconTint = Color(0xFF00C853),
                 label = if (language == AppLanguage.HINDI) "स्टोरेज विवरण" else "Storage Breakdown",
                 badge = "19 GB / 225 GB",
                 onClick = {
@@ -344,20 +344,20 @@ fun GoogleDrawerContent(
 }
 
 @Composable
-fun FilesBrandLogo(modifier: Modifier = Modifier) {
+fun AppBrandLogo(modifier: Modifier = Modifier) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Box(
                 modifier = Modifier
                     .size(16.dp)
                     .clip(RoundedCornerShape(topStart = 4.dp))
-                    .background(Color(0xFF1A73E8))
+                    .background(Color(0xFF00C853)) // Beautiful green accent primary style
             )
             Box(
                 modifier = Modifier
                     .size(16.dp)
                     .clip(RoundedCornerShape(bottomStart = 4.dp))
-                    .background(Color(0xFF00C853))
+                    .background(Color(0xFF00E676))
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -365,13 +365,13 @@ fun FilesBrandLogo(modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .size(16.dp)
                     .clip(RoundedCornerShape(topEnd = 4.dp))
-                    .background(Color(0xFFD93025))
+                    .background(Color(0xFF69F0AE))
             )
             Box(
                 modifier = Modifier
                     .size(16.dp)
                     .clip(RoundedCornerShape(bottomEnd = 4.dp))
-                    .background(Color(0xFFF9AB00))
+                    .background(Color(0xFFB9F6CA))
             )
         }
     }

@@ -339,7 +339,7 @@ object StorageScanner {
                     val cat = when {
                         ext in listOf("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "csv", "vcf") -> FileCategoryType.DOCUMENTS
                         ext in listOf("apk", "xapk") -> FileCategoryType.APPS
-                        ext in listOf("zip", "7z", "rar", "tar", "gz", "bz2") -> FileCategoryType.ARCHIVES
+                        ext in listOf("zip", "7z", "tar", "gz", "bz2", "xz") -> FileCategoryType.ARCHIVES
                         ext in listOf("jpg", "jpeg", "png", "webp", "gif") -> FileCategoryType.IMAGES
                         ext in listOf("mp4", "mkv", "avi", "mov", "webm") -> FileCategoryType.VIDEOS
                         ext in listOf("mp3", "flac", "wav", "m4a", "ogg") -> FileCategoryType.AUDIO
@@ -483,7 +483,7 @@ object StorageScanner {
                         extension in listOf("mp3", "flac", "wav", "m4a", "ogg", "aac", "wma", "mid") -> FileCategoryType.AUDIO
                         extension in listOf("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "csv", "vcf") -> FileCategoryType.DOCUMENTS
                         extension in listOf("apk", "xapk") -> FileCategoryType.APPS
-                        extension in listOf("zip", "7z", "rar", "tar", "gz", "bz2") -> FileCategoryType.ARCHIVES
+                        extension in listOf("zip", "7z", "tar", "gz", "bz2", "xz") -> FileCategoryType.ARCHIVES
                         else -> FileCategoryType.DOWNLOADS
                     }
 

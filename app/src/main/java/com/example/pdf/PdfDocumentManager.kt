@@ -160,7 +160,7 @@ object PdfDocumentManager {
     }
 
     /**
-     * Opens PDF with an external viewer app (Google Drive PDF, Adobe Acrobat, Chrome, etc.)
+     * Opens PDF with an external viewer app (System PDF reader, Acrobat, Chrome, etc.)
      */
     fun openWithExternalApp(context: Context, pdfFile: File): Boolean {
         return try {

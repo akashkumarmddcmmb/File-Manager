@@ -606,7 +606,7 @@ class FilesViewModel : ViewModel() {
             file.category == FileCategoryType.DOCUMENTS || ext in listOf("pdf", "txt", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv") -> {
                 openPdfViewer(file)
             }
-            file.category == FileCategoryType.ARCHIVES || ext in listOf("zip", "7z", "rar", "tar", "gz", "bz2", "xz") -> {
+            file.category == FileCategoryType.ARCHIVES || ext in listOf("zip", "7z", "tar", "gz", "bz2", "xz") -> {
                 openArchiveViewer(file)
             }
             else -> {
@@ -817,7 +817,7 @@ class FilesViewModel : ViewModel() {
 
     fun getArchiveFiles(): List<FileItem> {
         return _uiState.value.files.filter {
-            (it.category == FileCategoryType.ARCHIVES || it.extension in listOf("zip", "7z", "rar", "tar", "gz", "bz2", "xz")) &&
+            (it.category == FileCategoryType.ARCHIVES || it.extension in listOf("zip", "7z", "tar", "gz", "bz2", "xz")) &&
                     !it.isInTrash && !it.isInSafeFolder
         }
     }
@@ -1435,8 +1435,8 @@ fun defaultInitialFiles(): List<FileItem> {
         ),
         FileItem(
             id = "vid_1",
-            name = "Tutorial_Files_App_Review.mp4",
-            path = "/storage/emulated/0/Movies/Tutorial_Files_App_Review.mp4",
+            name = "Tutorial_FileManager_Review.mp4",
+            path = "/storage/emulated/0/Movies/Tutorial_FileManager_Review.mp4",
             sizeBytes = 1850000000L,
             category = FileCategoryType.VIDEOS,
             extension = "mp4",
