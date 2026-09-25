@@ -827,6 +827,7 @@ private fun MainAppContent(
             repeatMode = uiState.audioRepeatMode,
             playbackSpeed = uiState.audioPlaybackSpeed,
             equalizerPreset = uiState.audioEqualizerPreset,
+            equalizerEnabled = uiState.audioEqualizerEnabled,
             activeSleepTimerMinutes = uiState.audioSleepTimerMinutes,
             onTogglePlayPause = { viewModel.toggleAudioPlayPause() },
             onPrevious = { viewModel.prevAudioTrack() },
@@ -836,6 +837,7 @@ private fun MainAppContent(
             onCycleRepeatMode = { viewModel.cycleAudioRepeatMode() },
             onSetSpeed = { viewModel.setAudioPlaybackSpeed(it) },
             onSetEqualizer = { viewModel.setAudioEqualizerPreset(it) },
+            onToggleEqualizer = { viewModel.toggleAudioEqualizer(it) },
             onSetSleepTimer = { viewModel.setAudioSleepTimer(it) },
             onToggleStar = { viewModel.toggleStarred(it) },
             onDismiss = {

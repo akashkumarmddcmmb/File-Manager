@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
+import com.example.model.translate
 import com.example.ui.modals.OnScreenPermissionModal
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +43,9 @@ fun SettingsScreen(
     onCheckForUpdates: () -> Unit,
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val appVersion = remember(context) { com.example.update.AppUpdateManager.getAppVersionName(context) }
+
     var isDarkTheme by remember { mutableStateOf("system") } // "system", "light", "dark"
     var showHiddenFiles by remember { mutableStateOf(false) }
     var junkAlertEnabled by remember { mutableStateOf(true) }
@@ -95,7 +99,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(4.dp))
                         Column {
                             Text(
-                                text = if (isHindi) "सेटिंग्स" else "Settings",
+                                text = currentLanguage.translate("Settings"),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
@@ -103,7 +107,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (isHindi) "फ़ाइलें - आकाश कुमार द्वारा" else "Files - by Akash Kumar",
+                                text = if (currentLanguage == AppLanguage.HINDI) "फ़ाइलें - आकाश कुमार द्वारा" else "File Manager - by Akash Kumar",
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -121,7 +125,7 @@ fun SettingsScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = if (isHindi) "पूर्ण" else "Done",
+                            text = currentLanguage.translate("Done"),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -799,16 +803,16 @@ fun SettingsScreen(
             item {
                 SettingsGroupCard(
                     icon = Icons.Default.Info,
-                    title = if (isHindi) "ऐप और कानूनी जानकारी" else "App & Legal Information"
+                    title = currentLanguage.translate("App & Legal Information")
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(text = if (isHindi) "संस्करण" else "Version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(text = "फ़ाइलें - आकाश कुमार द्वारा v2.4.0 (ऑफिशियल)", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+                            Text(text = currentLanguage.translate("Version"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = if (currentLanguage == AppLanguage.HINDI) "फ़ाइलें - आकाश कुमार द्वारा v$appVersion" else "File Manager - by Akash Kumar v$appVersion", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(text = if (isHindi) "डेवलपर" else "Developer", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(text = "आकाश कुमार", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                            Text(text = currentLanguage.translate("Developer"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = if (currentLanguage == AppLanguage.HINDI) "आकाश कुमार" else "Akash Kumar", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(text = "Contact / Support", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -818,7 +822,7 @@ fun SettingsScreen(
                         // GitHub Repository configuration (For updates)
                         Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                         Text(
-                            text = if (isHindi) "अपडेट कॉन्फ़िगरेशन (GitHub)" else "Update Configuration (GitHub)",
+                            text = currentLanguage.translate("Update Configuration (GitHub)"),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFF00C853),
                             fontWeight = FontWeight.Bold
@@ -831,7 +835,7 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = githubRepoPath,
                                 onValueChange = onGithubRepoPathChange,
-                                label = { Text(if (isHindi) "रिपोजिटरी (owner/repo)" else "Repository (owner/repo)") },
+                                label = { Text(currentLanguage.translate("Repository (owner/repo)")) },
                                 textStyle = MaterialTheme.typography.bodySmall,
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
@@ -868,12 +872,12 @@ fun SettingsScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = if (isHindi) "नए अपडेट की जांच करें" else "Check for Updates",
+                                            text = currentLanguage.translate("Check for Updates"),
                                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = if (isHindi) "नवीनतम APK अपडेट इंस्टॉल करें" else "Install latest APK update",
+                                            text = currentLanguage.translate("Install latest APK update"),
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -895,7 +899,7 @@ fun SettingsScreen(
                                         ),
                                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
                                     ) {
-                                        Text(if (isHindi) "जांचें" else "Check", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text(currentLanguage.translate("Check"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -917,7 +921,7 @@ fun SettingsScreen(
                                     Icon(Icons.Default.Chat, contentDescription = null, tint = Color(0xFF1A73E8), modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = if (isHindi) "डेवलपर को प्रतिक्रिया भेजें" else "Send Developer Feedback",
+                                        text = currentLanguage.translate("Send Developer Feedback"),
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -942,12 +946,12 @@ fun SettingsScreen(
                             TextButton(onClick = onOpenPrivacyPolicy) {
                                 Icon(Icons.Default.PrivacyTip, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (isHindi) "गोपनीयता नीति" else "Privacy Policy", fontSize = 12.sp)
+                                Text(currentLanguage.translate("Privacy Policy"), fontSize = 12.sp)
                             }
                             TextButton(onClick = onOpenTerms) {
                                 Icon(Icons.Default.Gavel, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (isHindi) "सेवा की शर्तें" else "Terms of Service", fontSize = 12.sp)
+                                Text(currentLanguage.translate("Terms of Service"), fontSize = 12.sp)
                             }
                         }
                     }

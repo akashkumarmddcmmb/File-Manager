@@ -86,6 +86,7 @@ data class FilesUiState(
     val audioRepeatMode: PlaybackRepeatMode = PlaybackRepeatMode.REPEAT_ALL,
     val audioPlaybackSpeed: Float = 1.0f,
     val audioEqualizerPreset: String = "Bass Boost",
+    val audioEqualizerEnabled: Boolean = true,
     val audioSleepTimerMinutes: Int = 0,
     val showFullAudioPlayer: Boolean = false,
 
@@ -406,6 +407,10 @@ class FilesViewModel : ViewModel() {
 
     fun setAudioEqualizerPreset(preset: String) {
         _uiState.update { it.copy(audioEqualizerPreset = preset) }
+    }
+
+    fun toggleAudioEqualizer(enabled: Boolean) {
+        _uiState.update { it.copy(audioEqualizerEnabled = enabled) }
     }
 
     fun setAudioSleepTimer(minutes: Int) {

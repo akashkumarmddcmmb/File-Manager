@@ -23,25 +23,14 @@ class PlaybackService : MediaSessionService() {
         customProvider.setSmallIcon(com.example.R.drawable.media3_notification_small_icon)
         setMediaNotificationProvider(customProvider)
 
-        // Build ExoPlayer with ultra-fast LoadControl for instant playback (<50ms buffer)
+        // Build ExoPlayer with optimized attributes for instant local/network playback
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
             .build()
 
-        val fastLoadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                1000,  // minBufferMs
-                5000,  // maxBufferMs
-                50,    // bufferForPlaybackMs - start playing almost instantly!
-                100    // bufferForPlaybackAfterRebufferMs
-            )
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
-
         player = ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, true)
-            .setLoadControl(fastLoadControl)
             .setHandleAudioBecomingNoisy(true)
             .build()
 

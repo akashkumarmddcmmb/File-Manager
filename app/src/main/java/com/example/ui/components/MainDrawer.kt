@@ -79,6 +79,11 @@ fun MainDrawerContent(
     onOpenFeedback: () -> Unit,
     onOpenSignIn: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val appVersion = androidx.compose.runtime.remember(context) {
+        com.example.update.AppUpdateManager.getAppVersionName(context)
+    }
+
     ModalDrawerSheet(
         modifier = Modifier
             .width(320.dp)
@@ -122,7 +127,7 @@ fun MainDrawerContent(
                             )
                         }
                         Text(
-                            text = "Version v2.4.0 (Official)",
+                            text = "Version v$appVersion (Official)",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -334,7 +339,7 @@ fun MainDrawerContent(
 
             // Footer
             Text(
-                text = if (language == AppLanguage.HINDI) "आकाश कुमार - V2.4.0 (ऑफिशियल संस्करण)" else "Akash Kumar - V2.4.0 (Official Edition)",
+                text = if (language == AppLanguage.HINDI) "आकाश कुमार - V$appVersion (ऑफिशियल संस्करण)" else "Akash Kumar - V$appVersion (Official Edition)",
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.padding(horizontal = 24.dp)

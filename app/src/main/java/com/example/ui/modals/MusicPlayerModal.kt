@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -67,6 +68,7 @@ fun MusicPlayerModal(
     repeatMode: PlaybackRepeatMode = PlaybackRepeatMode.REPEAT_ALL,
     playbackSpeed: Float = 1.0f,
     equalizerPreset: String = "Flat",
+    equalizerEnabled: Boolean = true,
     activeSleepTimerMinutes: Int = 0,
     onTogglePlayPause: () -> Unit,
     onPrevious: () -> Unit,
@@ -76,6 +78,7 @@ fun MusicPlayerModal(
     onCycleRepeatMode: () -> Unit = {},
     onSetSpeed: (Float) -> Unit = {},
     onSetEqualizer: (String) -> Unit = {},
+    onToggleEqualizer: (Boolean) -> Unit = {},
     onSetSleepTimer: (Int) -> Unit = {},
     onToggleStar: (String) -> Unit = {},
     onDismiss: () -> Unit
@@ -566,6 +569,8 @@ fun MusicPlayerModal(
                 EqualizerSelectorDialog(
                     language = language,
                     activePreset = equalizerPreset,
+                    enabled = equalizerEnabled,
+                    onToggleEnabled = onToggleEqualizer,
                     onSelect = {
                         onSetEqualizer(it)
                         showEqualizerSelector = false
@@ -644,6 +649,8 @@ private fun WaveFormVisualizer(isPlaying: Boolean, position: Int) {
 private fun EqualizerSelectorDialog(
     language: AppLanguage,
     activePreset: String,
+    enabled: Boolean,
+    onToggleEnabled: (Boolean) -> Unit,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -660,7 +667,7 @@ private fun EqualizerSelectorDialog(
                 Icon(
                     imageVector = Icons.Default.GraphicEq,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = if (enabled) MaterialTheme.colorScheme.primary else Color.Gray,
                     modifier = Modifier.size(36.dp)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -674,21 +681,75 @@ private fun EqualizerSelectorDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.6f)
                 )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // On/Off Equalizer Toggle Card
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White.copy(alpha = 0.08f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = if (language == AppLanguage.HINDI) "स्थिति" else "Status",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = if (enabled) {
+                                    if (language == AppLanguage.HINDI) "सक्रिय (ऑन)" else "Active (ON)"
+                                } else {
+                                    if (language == AppLanguage.HINDI) "निष्क्रिय (ऑफ़)" else "Inactive (OFF)"
+                                },
+                                color = if (enabled) Color(0xFF00C853) else Color.Gray,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                        Switch(
+                            checked = enabled,
+                            onCheckedChange = onToggleEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF00C853),
+                                uncheckedThumbColor = Color.Gray,
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
+                            )
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 val presets = listOf("Flat", "Bass Boost", "Vocal Booster", "Rock", "Pop", "Jazz")
                 presets.forEach { preset ->
-                    val isActive = activePreset.equals(preset, ignoreCase = true)
+                    val isActive = enabled && activePreset.equals(preset, ignoreCase = true)
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
-                            .clickable { onSelect(preset) },
+                            .then(
+                                if (enabled) Modifier.clickable { onSelect(preset) } else Modifier
+                            ),
                         shape = RoundedCornerShape(12.dp),
-                        color = if (isActive) MaterialTheme.colorScheme.primaryContainer else Color.White.copy(alpha = 0.05f)
+                        color = if (isActive) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            Color.White.copy(alpha = if (enabled) 0.05f else 0.02f)
+                        }
                     ) {
                         Row(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier
+                                .padding(14.dp)
+                                .then(if (!enabled) Modifier.alpha(0.35f) else Modifier),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(

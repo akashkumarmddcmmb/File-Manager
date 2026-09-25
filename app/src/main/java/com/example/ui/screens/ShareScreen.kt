@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
+import com.example.model.translate
 
 @Composable
 fun ShareScreen(
@@ -67,7 +68,7 @@ fun ShareScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = if (language == AppLanguage.HINDI) "आस-पास शेयर करें" else "Nearby Share",
+                        text = language.translate("Nearby Share"),
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                         color = Color.White
                     )
@@ -77,6 +78,12 @@ fun ShareScreen(
                     Text(
                         text = if (language == AppLanguage.HINDI)
                             "बिना इंटरनेट के पास के दोस्तों को फोटो, वीडियो और फाइलें तेजी से भेजें।"
+                        else if (language == AppLanguage.SPANISH)
+                            "Envíe y reciba archivos rápidamente sin Internet utilizando Wi-Fi Direct y Bluetooth."
+                        else if (language == AppLanguage.FRENCH)
+                            "Envoyez et recevez des fichiers rapidement sans Internet grâce au Wi-Fi Direct et Bluetooth."
+                        else if (language == AppLanguage.ARABIC)
+                            "أرسل واستقبل الملفات بسرعة بدون إنترنت باستخدام واي فاي المباشر وبلوتوث."
                         else
                             "Send and receive files fast without internet using Wi-Fi Direct & Bluetooth.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -101,7 +108,7 @@ fun ShareScreen(
                             Icon(Icons.Default.Upload, contentDescription = "Send")
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (language == AppLanguage.HINDI) "भेजें (Send)" else "Send",
+                                text = language.translate("Send"),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
@@ -118,7 +125,7 @@ fun ShareScreen(
                             Icon(Icons.Default.Download, contentDescription = "Receive")
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (language == AppLanguage.HINDI) "प्राप्त करें" else "Receive",
+                                text = language.translate("Receive"),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
@@ -156,12 +163,12 @@ fun ShareScreen(
                         Spacer(modifier = Modifier.width(14.dp))
                         Column {
                             Text(
-                                text = if (language == AppLanguage.HINDI) "हाई-स्पीड वाई-फाई ट्रांसफर" else "High-Speed Wi-Fi Transfer",
+                                text = language.translate("High-Speed Wi-Fi Transfer"),
                                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (language == AppLanguage.HINDI) "480 Mbps तक की स्पीड" else "Speeds up to 480 Mbps",
+                                text = language.translate("Speeds up to 480 Mbps"),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -193,7 +200,7 @@ fun ShareScreen(
             onDismissRequest = { showSendModal = false },
             title = {
                 Text(
-                    text = if (language == AppLanguage.HINDI) "पास के डिवाइस की खोज..." else "Searching for Nearby Devices...",
+                    text = language.translate("Searching for Nearby Devices..."),
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -210,6 +217,12 @@ fun ShareScreen(
                     Text(
                         text = if (language == AppLanguage.HINDI)
                             "कृपया प्राप्तकर्ता के फोन में 'प्राप्त करें' (Receive) बटन दबाएं।"
+                        else if (language == AppLanguage.SPANISH)
+                            "Por favor, pídale al destinatario que toque 'Recibir' en su dispositivo."
+                        else if (language == AppLanguage.FRENCH)
+                            "Veuillez demander au destinataire d'appuyer sur 'Recevoir' sur son appareil."
+                        else if (language == AppLanguage.ARABIC)
+                            "يرجى الطلب من المستلم الضغط على 'استلام' في جهازه."
                         else
                             "Please ask the recipient to tap 'Receive' on their device.",
                         textAlign = TextAlign.Center,
@@ -219,7 +232,7 @@ fun ShareScreen(
             },
             confirmButton = {
                 Button(onClick = { showSendModal = false }) {
-                    Text(if (language == AppLanguage.HINDI) "रद्द करें" else "Cancel")
+                    Text(language.translate("Cancel"))
                 }
             }
         )
@@ -230,7 +243,7 @@ fun ShareScreen(
             onDismissRequest = { showReceiveModal = false },
             title = {
                 Text(
-                    text = if (language == AppLanguage.HINDI) "प्राप्त करने के लिए तैयार" else "Ready to Receive Files",
+                    text = language.translate("Ready to Receive Files"),
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -249,6 +262,12 @@ fun ShareScreen(
                     Text(
                         text = if (language == AppLanguage.HINDI)
                             "भेजने वाला इस क्यूआर कोड को स्कैन कर सकता है।"
+                        else if (language == AppLanguage.SPANISH)
+                            "El remitente puede escanear este código QR para iniciar la transferencia."
+                        else if (language == AppLanguage.FRENCH)
+                            "L'expéditeur peut scanner ce code QR pour lancer le transfert."
+                        else if (language == AppLanguage.ARABIC)
+                            "يمكن للمرسل مسح رمز الاستجابة السريعة (QR) لبدء النقل."
                         else
                             "The sender can scan this QR code to initiate transfer.",
                         textAlign = TextAlign.Center,
@@ -258,7 +277,7 @@ fun ShareScreen(
             },
             confirmButton = {
                 Button(onClick = { showReceiveModal = false }) {
-                    Text(if (language == AppLanguage.HINDI) "ठीक है" else "Done")
+                    Text(language.translate("Done"))
                 }
             }
         )

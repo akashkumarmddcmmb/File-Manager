@@ -118,7 +118,10 @@ class Media3AudioManager(private val context: Context) {
                     if (pendingTarget != null) {
                         pendingTargetFile = null
                         pendingPlaylist = null
-                        playPlaylist(pendingList ?: listOf(pendingTarget), pendingTarget)
+                        // If directFallbackEngine has already started playing this song, DO NOT interrupt it!
+                        if (!isUsingFallback || !directFallbackEngine.isPlaying()) {
+                            playPlaylist(pendingList ?: listOf(pendingTarget), pendingTarget)
+                        }
                     }
                 } catch (e: Exception) {
                     isConnecting = false

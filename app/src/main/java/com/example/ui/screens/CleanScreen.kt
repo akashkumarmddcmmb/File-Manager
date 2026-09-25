@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
 import com.example.model.CleanJunkItem
+import com.example.model.translate
 
 @Composable
 fun CleanScreen(
@@ -79,13 +80,13 @@ fun CleanScreen(
 
                     if (isCleaning) {
                         Text(
-                            text = if (language == AppLanguage.HINDI) "जंक फाइलें साफ हो रही हैं..." else "Cleaning Junk Files...",
+                            text = language.translate("Cleaning Junk Files..."),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                             color = Color.White
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "${(cleanProgress * 100).toInt()}% ${if (language == AppLanguage.HINDI) "पूरा हुआ" else "completed"}",
+                            text = "${(cleanProgress * 100).toInt()}% ${language.translate("completed")}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color(0xFFB0BEC5)
                         )
@@ -106,7 +107,7 @@ fun CleanScreen(
                             color = Color.White
                         )
                         Text(
-                            text = if (language == AppLanguage.HINDI) "अस्थायी व जंक फाइलें उपलब्ध हैं" else "Junk & Temporary Files Available to Clean",
+                            text = language.translate("Junk & Temporary Files Available to Clean"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color(0xFF90A4AE),
                             textAlign = TextAlign.Center
@@ -129,7 +130,7 @@ fun CleanScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (language == AppLanguage.HINDI) "सभी जंक साफ करें ($junkSizeText)" else "Clean All Junk ($junkSizeText)",
+                                text = "${language.translate("Clean All Junk")} ($junkSizeText)",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -154,7 +155,7 @@ fun CleanScreen(
                         .padding(20.dp)
                 ) {
                     Text(
-                        text = if (language == AppLanguage.HINDI) "सफाई की श्रेणियां" else "Cleanup Categories",
+                        text = language.translate("Cleanup Categories"),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -162,7 +163,7 @@ fun CleanScreen(
 
                     if (junkCategories.isEmpty()) {
                         Text(
-                            text = if (language == AppLanguage.HINDI) "आपका डिवाइस साफ है!" else "Your device is clean!",
+                            text = language.translate("Your device is clean!"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(vertical = 12.dp)
@@ -239,13 +240,19 @@ fun CleanScreen(
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (language == AppLanguage.HINDI) "स्मार्ट रैम व स्टोरेज बूस्ट" else "Smart Storage & RAM Optimization",
+                            text = language.translate("Smart Storage & RAM Optimization"),
                             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = if (language == AppLanguage.HINDI)
                                 "नियमित सफाई से आपका डिवाइस तेज चलता है और बैटरी की बचत होती है।"
+                            else if (language == AppLanguage.SPANISH)
+                                "La limpieza regular ayuda a que su dispositivo funcione más rápido y prolonga la salud de la batería."
+                            else if (language == AppLanguage.FRENCH)
+                                "Un nettoyage régulier permet à votre appareil de fonctionner plus rapidement et prolonge la durée de vie de la batterie."
+                            else if (language == AppLanguage.ARABIC)
+                                "يساعد التنظيف المنتظم جهازك على العمل بشكل أسرع وإطالة عمر البطارية."
                             else
                                 "Regular cleaning helps your device run faster and extends battery health.",
                             style = MaterialTheme.typography.bodySmall,
