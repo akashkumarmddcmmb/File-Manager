@@ -158,6 +158,8 @@ jobs:
       # 11. Build Debug APK
       # ==========================================================
       - name: Build Debug APK
+        env:
+          GRADLE_OPTS: "-Djava.awt.headless=true"
         shell: bash
         run: |
           set -euxo pipefail
