@@ -5,220 +5,304 @@ on:
     branches:
       - main
       - master
-
   workflow_dispatch:
 
 permissions:
   contents: write
 
-env:
-  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-apk:
-    name: Build File Manager APK
+    name: Build Android Debug APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      # ---------------------------------------------------------
+      # 1. Checkout
+      # ---------------------------------------------------------
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup JDK 17
+      # ---------------------------------------------------------
+      # 2. Java 17
+      # AGP 9.1.1 requires JDK 17
+      # ---------------------------------------------------------
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
           cache: gradle
 
-      - name: Setup Android SDK
+      # ---------------------------------------------------------
+      # 3. Android SDK
+      # ---------------------------------------------------------
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36.1 build-tools;36.0.0'
 
-      - name: Verify Android SDK
+      # ---------------------------------------------------------
+      # 4. Verify Java / Android SDK
+      # ---------------------------------------------------------
+      - name: Verify build environment
         shell: bash
         run: |
           set -e
 
-          echo "======================================"
-          echo "JAVA"
-          echo "======================================"
+          echo "===== JAVA ====="
           java -version
 
-          echo ""
-          echo "======================================"
-          echo "ANDROID SDK"
-          echo "======================================"
+          echo "===== GRADLE ====="
+          if [ -f "gradle/wrapper/gradle-wrapper.properties" ]; then
+            grep "distributionUrl" gradle/wrapper/gradle-wrapper.properties || true
+          fi
+
+          echo "===== ANDROID SDK ====="
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
           sdkmanager --version
 
-          echo ""
-          echo "ANDROID_HOME:"
-          echo "$ANDROID_HOME"
+          echo "===== PROJECT ====="
+          test -f settings.gradle.kts
+          test -f build.gradle.kts
+          test -f app/build.gradle.kts
+          test -f gradle/libs.versions.toml
 
-      - name: Verify Project Structure
-        shell: bash
-        run: |
-          set -e
+          echo "Project structure OK."
 
-          echo "======================================"
-          echo "PROJECT STRUCTURE"
-          echo "======================================"
-
-          test -f "settings.gradle.kts"
-          test -f "build.gradle.kts"
-          test -f "app/build.gradle.kts"
-          test -f "gradle/wrapper/gradle-wrapper.properties"
-
-          echo "settings.gradle.kts ........ OK"
-          echo "build.gradle.kts ........... OK"
-          echo "app/build.gradle.kts ....... OK"
-          echo "gradle-wrapper.properties .. OK"
-
-      - name: Detect Gradle Version
-        id: gradle_version
-        shell: bash
-        run: |
-          set -e
-
-          FILE="gradle/wrapper/gradle-wrapper.properties"
-
-          DISTRIBUTION_URL=$(grep '^distributionUrl=' "$FILE" | sed 's/^distributionUrl=//')
-
-          if [ -z "$DISTRIBUTION_URL" ]; then
-            echo "ERROR: distributionUrl was not found."
-            cat "$FILE"
-            exit 1
-          fi
-
-          echo "Gradle distribution:"
-          echo "$DISTRIBUTION_URL"
-
-          VERSION=$(echo "$DISTRIBUTION_URL" | sed -n 's/.*gradle-\([0-9][0-9.]*\)-.*/\1/p')
-
-          if [ -z "$VERSION" ]; then
-            echo "ERROR: Could not detect Gradle version."
-            exit 1
-          fi
-
-          echo "Detected Gradle version: $VERSION"
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Project Gradle
-        uses: gradle/actions/setup-gradle@v4
+      # ---------------------------------------------------------
+      # 5. Explicit Gradle 9.3.1
+      # AGP 9.1.1 compatibility
+      # ---------------------------------------------------------
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: ${{ steps.gradle_version.outputs.version }}
+          gradle-version: '9.3.1'
+          cache-read-only: false
 
-      - name: Verify Gradle
+      # ---------------------------------------------------------
+      # 6. Verify Gradle
+      # ---------------------------------------------------------
+      - name: Verify Gradle version
         shell: bash
         run: |
           set -e
-
-          echo "======================================"
-          echo "GRADLE"
-          echo "======================================"
-
           gradle --version
 
-      - name: Clean Project
+      # ---------------------------------------------------------
+      # 7. Check important Android/Kotlin/KSP versions
+      # ---------------------------------------------------------
+      - name: Verify project toolchain versions
         shell: bash
         run: |
           set -e
 
-          gradle clean \
-            --no-daemon \
-            --stacktrace
+          echo "===== Version catalog ====="
 
+          grep -E \
+            'agp =|kotlin =|googleDevtoolsKsp =|roomCompiler =|moshiKotlinCodegen =' \
+            gradle/libs.versions.toml || true
+
+          echo "===== Java target ====="
+
+          grep -n -A4 "compileOptions" app/build.gradle.kts || true
+
+          echo "===== KSP ====="
+
+          grep -n "google.devtools.ksp" app/build.gradle.kts || true
+          grep -n '"ksp"' app/build.gradle.kts || true
+
+      # ---------------------------------------------------------
+      # 8. Accept Android licenses
+      # ---------------------------------------------------------
+      - name: Accept Android SDK licenses
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+
+      # ---------------------------------------------------------
+      # 9. Clean build
+      # ---------------------------------------------------------
+      - name: Clean project
+        shell: bash
+        run: |
+          set -e
+          gradle clean --no-daemon --stacktrace
+
+      # ---------------------------------------------------------
+      # 10. Build Debug APK
+      # ---------------------------------------------------------
       - name: Build Debug APK
         shell: bash
         run: |
           set -e
 
-          echo "======================================"
-          echo "BUILDING DEBUG APK"
-          echo "======================================"
-
-          gradle :app:assembleDebug \
+          gradle \
+            :app:assembleDebug \
             --no-daemon \
             --stacktrace \
-            --warning-mode all
+            --warning-mode=all
 
-      - name: Find Generated APK
+      # ---------------------------------------------------------
+      # 11. Find APK
+      # ---------------------------------------------------------
+      - name: Locate APK
+        id: apk
         shell: bash
         run: |
           set -e
 
-          echo "======================================"
-          echo "SEARCHING FOR APK"
-          echo "======================================"
-
-          APK=$(find app/build/outputs \
-            -type f \
-            -name "*.apk" \
-            -print -quit)
+          APK="$(find app/build/outputs/apk -type f -name '*.apk' | head -n 1)"
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK was not generated."
-
-            echo ""
-            echo "Build output:"
-            find app/build/outputs \
-              -type f \
-              -print || true
-
+            find app/build/outputs -maxdepth 5 -type f -print || true
             exit 1
           fi
 
           echo "APK found:"
           echo "$APK"
 
-          echo "$APK" > "$GITHUB_WORKSPACE/.apk-path"
+          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
 
-          ls -lh "$APK"
-
-      - name: Generate SHA-256
+      # ---------------------------------------------------------
+      # 12. APK verification
+      # ---------------------------------------------------------
+      - name: Verify APK
         shell: bash
         run: |
           set -e
 
-          APK=$(cat "$GITHUB_WORKSPACE/.apk-path")
+          APK="${{ steps.apk.outputs.apk_path }}"
 
-          sha256sum "$APK" > "$APK.sha256"
+          test -f "$APK"
+          test -s "$APK"
 
-          echo "======================================"
-          echo "APK SHA-256"
-          echo "======================================"
+          echo "APK size:"
+          du -h "$APK"
 
-          cat "$APK.sha256"
+          echo "APK SHA-256:"
+          sha256sum "$APK"
 
-      - name: Upload Debug APK
+      # ---------------------------------------------------------
+      # 13. Generate SHA-256 checksum
+      # ---------------------------------------------------------
+      - name: Generate APK checksum
+        shell: bash
+        run: |
+          set -e
+
+          APK="${{ steps.apk.outputs.apk_path }}"
+
+          sha256sum "$APK" > "${APK}.sha256"
+
+          echo "===== SHA-256 ====="
+          cat "${APK}.sha256"
+
+      # ---------------------------------------------------------
+      # 14. Generate build information
+      # ---------------------------------------------------------
+      - name: Generate build information
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p build-info
+
+          echo "Repository: $GITHUB_REPOSITORY" \
+            > build-info/build-info.txt
+
+          echo "Commit: $GITHUB_SHA" \
+            >> build-info/build-info.txt
+
+          echo "Branch: $GITHUB_REF_NAME" \
+            >> build-info/build-info.txt
+
+          echo "Build number: $GITHUB_RUN_NUMBER" \
+            >> build-info/build-info.txt
+
+          echo "Java:"
+          java -version 2>&1 \
+            | tee -a build-info/build-info.txt
+
+          echo "Gradle:"
+          gradle --version \
+            | tee -a build-info/build-info.txt
+
+          echo "APK SHA-256:"
+          cat "${{ steps.apk.outputs.apk_path }}.sha256" \
+            >> build-info/build-info.txt
+
+          cat build-info/build-info.txt
+
+      # ---------------------------------------------------------
+      # 15. Upload APK artifact
+      # ---------------------------------------------------------
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: File-Manager-Debug-APK
+          name: file-manager-debug-apk-${{ github.run_number }}
           path: |
-            app/build/outputs/**/*.apk
-            app/build/outputs/**/*.apk.sha256
+            ${{ steps.apk.outputs.apk_path }}
+            ${{ steps.apk.outputs.apk_path }}.sha256
+            build-info/build-info.txt
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload Build Outputs
-        if: always()
+      # ---------------------------------------------------------
+      # 16. Upload complete build outputs
+      # ---------------------------------------------------------
+      - name: Upload build outputs
         uses: actions/upload-artifact@v4
         with:
-          name: File-Manager-Build-Outputs
-          path: app/build/outputs/
+          name: android-build-outputs-${{ github.run_number }}
+          path: |
+            app/build/outputs/**
           if-no-files-found: warn
           retention-days: 14
 
+      # ---------------------------------------------------------
+      # 17. Create GitHub Release on main
+      # ---------------------------------------------------------
+      - name: Prepare release package
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p release
+
+          cp "${{ steps.apk.outputs.apk_path }}" \
+            release/File-Manager-${{ github.run_number }}.apk
+
+          cp "${{ steps.apk.outputs.apk_path }}.sha256" \
+            release/File-Manager-${{ github.run_number }}.apk.sha256
+
+          cp build-info/build-info.txt \
+            release/build-info.txt
+
+          echo "Release files:"
+          ls -lh release
+
+      # ---------------------------------------------------------
+      # 18. GitHub Release
+      # ---------------------------------------------------------
       - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main' && success()
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "build-${{ github.run_number }}"
           name: "File Manager Build ${{ github.run_number }}"
           generate_release_notes: true
+          prerelease: true
           files: |
-            app/build/outputs/**/*.apk
-            app/build/outputs/**/*.apk.sha256
+            release/File-Manager-${{ github.run_number }}.apk
+            release/File-Manager-${{ github.run_number }}.apk.sha256
+            release/build-info.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
