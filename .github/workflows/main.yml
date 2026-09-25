@@ -5,13 +5,17 @@ on:
     branches:
       - main
       - master
+
   workflow_dispatch:
 
 permissions:
   contents: write
 
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+
 jobs:
-  build:
+  build-apk:
     name: Build File Manager APK
     runs-on: ubuntu-latest
 
@@ -27,40 +31,63 @@ jobs:
           cache: gradle
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
-      - name: Make Gradle Executable
-        shell: bash
-        run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-          fi
-
-      - name: Verify Project
+      - name: Verify Android SDK
         shell: bash
         run: |
           set -e
 
-          test -f "settings.gradle.kts"
-          test -f "build.gradle.kts"
-          test -f "app/build.gradle.kts"
+          echo "Java:"
+          java -version
 
-          echo "Project structure OK."
+          echo "Android SDK:"
+          sdkmanager --version
+
+          echo "ANDROID_HOME:"
+          echo "${ANDROID_HOME}"
+
+          echo "Installed Android packages:"
+          sdkmanager --list_installed || true
+
+      - name: Verify Project Files
+        shell: bash
+        run: |
+          set -e
+
+          test -f "./gradlew"
+          test -f "./settings.gradle.kts" || test -f "./settings.gradle"
+          test -f "./build.gradle.kts" || test -f "./build.gradle"
+          test -f "./app/build.gradle.kts" || test -f "./app/build.gradle"
+
+          echo "Project files verified."
+
+      - name: Make Gradle Wrapper Executable
+        shell: bash
+        run: |
+          set -e
+          chmod +x ./gradlew
+
+      - name: Verify Gradle Wrapper
+        shell: bash
+        run: |
+          set -e
+          ./gradlew --version
+
+      - name: Clean Project
+        shell: bash
+        run: |
+          set -e
+          ./gradlew clean --stacktrace
 
       - name: Build Debug APK
         shell: bash
         run: |
           set -e
 
-          if [ -f "./gradlew" ]; then
-            ./gradlew :app:assembleDebug \
-              --no-daemon \
-              --stacktrace
-          else
-            gradle :app:assembleDebug \
-              --no-daemon \
-              --stacktrace
-          fi
+          ./gradlew :app:assembleDebug \
+            --stacktrace \
+            --warning-mode all
 
       - name: Verify APK
         shell: bash
@@ -70,8 +97,9 @@ jobs:
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
           if [ ! -f "$APK" ]; then
-            echo "APK was not generated."
-            find app/build/outputs -type f -print || true
+            echo "ERROR: APK was not generated."
+            echo "Available APK files:"
+            find . -type f -name "*.apk" -print || true
             exit 1
           fi
 
@@ -81,22 +109,42 @@ jobs:
 
           ls -lh "$APK"
 
+      - name: Generate SHA-256
+        shell: bash
+        run: |
+          set -e
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
           sha256sum "$APK" > "$APK.sha256"
+
+          echo "======================================"
+          echo "APK SHA-256"
+          echo "======================================"
 
           cat "$APK.sha256"
 
-      - name: Upload APK Artifact
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: File-Manager-APK
+          name: File-Manager-Debug-APK
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
           retention-days: 30
 
+      - name: Upload Build Outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: File-Manager-Build-Outputs
+          path: app/build/outputs/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/heads/main')
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "build-${{ github.run_number }}"
