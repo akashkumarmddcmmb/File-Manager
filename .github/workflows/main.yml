@@ -5,10 +5,13 @@ on:
     branches:
       - main
       - master
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
 
 permissions:
   contents: write
+  security-events: write
 
 concurrency:
   group: android-build-${{ github.ref }}
@@ -26,9 +29,34 @@ jobs:
       # ==========================================================
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # ==========================================================
-      # 2. Java 17
+      # 2. Security Audits & Secret Scanning
+      # ==========================================================
+      - name: Secret Scanning (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Vulnerability Scanner (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Security Scan Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      # ==========================================================
+      # 3. Java 17
       # ==========================================================
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -38,13 +66,13 @@ jobs:
           cache: gradle
 
       # ==========================================================
-      # 3. Android SDK
+      # 4. Android SDK
       # ==========================================================
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
       # ==========================================================
-      # 4. Install Android SDK packages
+      # 5. Install Android SDK packages
       # ==========================================================
       - name: Install Android SDK packages
         shell: bash
@@ -59,7 +87,23 @@ jobs:
             "build-tools;36.0.0"
 
       # ==========================================================
-      # 5. Verify project structure
+      # 6. Secure Environment Variables Injection
+      # ==========================================================
+      - name: Secure Environment Variables Injection (.env)
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          if [ -f .env.example ]; then
+            cp .env.example .env
+          else
+            touch .env
+          fi
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          echo "Environment configuration ready."
+
+      # ==========================================================
+      # 7. Verify project structure
       # ==========================================================
       - name: Verify project structure
         shell: bash
@@ -82,7 +126,7 @@ jobs:
           echo "Project structure OK."
 
       # ==========================================================
-      # 6. Show project versions
+      # 8. Show project versions
       # ==========================================================
       - name: Check AGP Kotlin KSP versions
         shell: bash
@@ -99,7 +143,7 @@ jobs:
           java -version
 
       # ==========================================================
-      # 7. Setup Gradle 9.3.1
+      # 9. Setup Gradle 9.3.1
       # ==========================================================
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -108,7 +152,7 @@ jobs:
           cache-read-only: false
 
       # ==========================================================
-      # 8. Verify Gradle
+      # 10. Verify Gradle
       # ==========================================================
       - name: Verify Gradle
         shell: bash
@@ -119,7 +163,7 @@ jobs:
           gradle --version
 
       # ==========================================================
-      # 9. Check Gradle properties
+      # 11. Check Gradle properties
       # ==========================================================
       - name: Check Gradle configuration
         shell: bash
@@ -135,7 +179,7 @@ jobs:
           fi
 
       # ==========================================================
-      # 10. Clean
+      # 12. Clean
       # ==========================================================
       - name: Clean project
         shell: bash
@@ -151,7 +195,7 @@ jobs:
             --warning-mode=all
 
       # ==========================================================
-      # 11. Build Debug APK
+      # 13. Build Debug APK
       # ==========================================================
       - name: Build Debug APK
         shell: bash
@@ -209,7 +253,7 @@ jobs:
           echo "=================================================="
 
       # ==========================================================
-      # 12. Find APK
+      # 14. Find APK
       # ==========================================================
       - name: Locate APK
         id: apk
@@ -246,7 +290,7 @@ jobs:
           echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
 
       # ==========================================================
-      # 13. Verify APK
+      # 15. Verify APK
       # ==========================================================
       - name: Verify APK
         shell: bash
@@ -266,7 +310,7 @@ jobs:
           sha256sum "$APK"
 
       # ==========================================================
-      # 14. Generate SHA256 checksum
+      # 16. Generate SHA256 checksum
       # ==========================================================
       - name: Generate SHA256 checksum
         shell: bash
@@ -281,7 +325,7 @@ jobs:
           cat "${APK}.sha256"
 
       # ==========================================================
-      # 15. Generate build information
+      # 17. Generate build information
       # ==========================================================
       - name: Generate build information
         shell: bash
@@ -309,7 +353,7 @@ jobs:
           cat build-info/build-info.txt
 
       # ==========================================================
-      # 16. Upload APK artifact
+      # 18. Upload APK artifact
       # ==========================================================
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -323,7 +367,7 @@ jobs:
           retention-days: 30
 
       # ==========================================================
-      # 17. Upload build outputs
+      # 19. Upload build outputs
       # ==========================================================
       - name: Upload build outputs
         uses: actions/upload-artifact@v4
@@ -335,10 +379,10 @@ jobs:
           retention-days: 14
 
       # ==========================================================
-      # 18. Prepare GitHub Release
+      # 20. Prepare GitHub Release
       # ==========================================================
       - name: Prepare release package
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           set -euxo pipefail
@@ -358,16 +402,16 @@ jobs:
           ls -lh release
 
       # ==========================================================
-      # 19. GitHub Release
+      # 21. Automatic GitHub Release
       # ==========================================================
       - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "build-${{ github.run_number }}"
           name: "File Manager Build ${{ github.run_number }}"
           generate_release_notes: true
-          prerelease: true
+          prerelease: false
           files: |
             release/File-Manager-${{ github.run_number }}.apk
             release/File-Manager-${{ github.run_number }}.apk.sha256
