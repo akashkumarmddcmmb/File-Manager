@@ -149,7 +149,7 @@ jobs:
 
       # 12. Upload APK
       - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: File-manager-1-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
@@ -159,7 +159,7 @@ jobs:
       # 13. Upload build outputs if anything fails
       - name: Upload Build Outputs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: File-manager-1-Build-Outputs
           path: app/build/outputs/
