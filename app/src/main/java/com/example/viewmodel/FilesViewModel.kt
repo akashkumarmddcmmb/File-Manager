@@ -34,6 +34,9 @@ data class FilesUiState(
     val isCheckingForUpdates: Boolean = false,
     val updateResult: UpdateResult? = null,
     val showUpdateDialog: Boolean = false,
+    val isDownloadingUpdate: Boolean = false,
+    val updateDownloadProgress: Float = 0f,
+    val downloadedApkPath: String? = null,
     val backgroundMusicPlayback: Boolean = true,
     val isUltraBatterySaver: Boolean = true,
     val searchQuery: String = "",
@@ -124,8 +127,45 @@ class FilesViewModel : ViewModel() {
     private val videoAudioEngine = RealAudioEngine()
     private var media3AudioManager: com.example.audio.Media3AudioManager? = null
 
+    private var appContext: Context? = null
+
     fun setContext(context: Context) {
-        videoAudioEngine.setContext(context)
+        val appCtx = context.applicationContext
+        this.appContext = appCtx
+        videoAudioEngine.setContext(appCtx)
+        
+        val prefs = appCtx.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val langStr = prefs.getString("language", AppLanguage.ENGLISH.name) ?: AppLanguage.ENGLISH.name
+        val themeStr = prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
+        val accentStr = prefs.getString("accent_color", AccentColorType.EMERALD.name) ?: AccentColorType.EMERALD.name
+        val showHidden = prefs.getBoolean("show_hidden_files", false)
+        val junkAlert = prefs.getBoolean("junk_alert_enabled", true)
+        val bgMusic = prefs.getBoolean("bg_music_playback", true)
+        val ultraBattery = prefs.getBoolean("ultra_battery_saver", true)
+        
+        val lang = try { AppLanguage.valueOf(langStr) } catch(e: Exception) { AppLanguage.ENGLISH }
+        val theme = try { ThemeMode.valueOf(themeStr) } catch(e: Exception) { ThemeMode.SYSTEM }
+        val accent = try { AccentColorType.valueOf(accentStr) } catch(e: Exception) { AccentColorType.EMERALD }
+        
+        _uiState.update { state ->
+            state.copy(
+                language = lang,
+                themeMode = theme,
+                accentColor = accent,
+                showHiddenFiles = showHidden,
+                junkAlertEnabled = junkAlert,
+                backgroundMusicPlayback = bgMusic,
+                isUltraBatterySaver = ultraBattery
+            )
+        }
+    }
+
+    private fun getPrefsEditor(): android.content.SharedPreferences.Editor? {
+        return appContext?.getSharedPreferences("app_settings", Context.MODE_PRIVATE)?.edit()
+    }
+
+    fun setAppInForeground(foreground: Boolean) {
+        media3AudioManager?.setAppInForeground(foreground)
     }
 
     fun setMedia3AudioManager(manager: com.example.audio.Media3AudioManager) {
@@ -219,22 +259,33 @@ class FilesViewModel : ViewModel() {
 
     fun setLanguage(lang: AppLanguage) {
         _uiState.update { it.copy(language = lang, showLanguageDialog = false) }
+        getPrefsEditor()?.putString("language", lang.name)?.apply()
     }
 
     fun setThemeMode(mode: ThemeMode) {
         _uiState.update { it.copy(themeMode = mode) }
+        getPrefsEditor()?.putString("theme_mode", mode.name)?.apply()
     }
 
     fun setAccentColor(accent: AccentColorType) {
         _uiState.update { it.copy(accentColor = accent) }
+        getPrefsEditor()?.putString("accent_color", accent.name)?.apply()
     }
 
     fun toggleShowHiddenFiles() {
-        _uiState.update { it.copy(showHiddenFiles = !it.showHiddenFiles) }
+        _uiState.update {
+            val updated = !it.showHiddenFiles
+            getPrefsEditor()?.putBoolean("show_hidden_files", updated)?.apply()
+            it.copy(showHiddenFiles = updated)
+        }
     }
 
     fun toggleJunkAlert() {
-        _uiState.update { it.copy(junkAlertEnabled = !it.junkAlertEnabled) }
+        _uiState.update {
+            val updated = !it.junkAlertEnabled
+            getPrefsEditor()?.putBoolean("junk_alert_enabled", updated)?.apply()
+            it.copy(junkAlertEnabled = updated)
+        }
     }
 
     fun setQuickShareDeviceName(name: String) {
@@ -246,7 +297,11 @@ class FilesViewModel : ViewModel() {
     }
 
     fun toggleBackgroundMusic() {
-        _uiState.update { it.copy(backgroundMusicPlayback = !it.backgroundMusicPlayback) }
+        _uiState.update {
+            val updated = !it.backgroundMusicPlayback
+            getPrefsEditor()?.putBoolean("bg_music_playback", updated)?.apply()
+            it.copy(backgroundMusicPlayback = updated)
+        }
     }
 
     fun setSearchQuery(query: String) {
@@ -1308,6 +1363,32 @@ class FilesViewModel : ViewModel() {
                     }
                 )
             }
+        }
+    }
+
+    fun startDownloadingUpdate(context: Context, downloadUrl: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDownloadingUpdate = true, updateDownloadProgress = 0f, downloadedApkPath = null) }
+            val apkFile = AppUpdateManager.downloadApk(context, downloadUrl) { progress ->
+                _uiState.update { it.copy(updateDownloadProgress = progress) }
+            }
+            _uiState.update { 
+                it.copy(
+                    isDownloadingUpdate = false, 
+                    downloadedApkPath = apkFile?.absolutePath
+                ) 
+            }
+            if (apkFile != null) {
+                // Request install package source permissions and run installer
+                installApkDirectly(context, apkFile)
+            }
+        }
+    }
+
+    fun installApkDirectly(context: Context, file: java.io.File? = null) {
+        val apkFile = file ?: _uiState.value.downloadedApkPath?.let { java.io.File(it) }
+        if (apkFile != null && apkFile.exists()) {
+            AppUpdateManager.checkPermissionAndInstall(context, apkFile)
         }
     }
 

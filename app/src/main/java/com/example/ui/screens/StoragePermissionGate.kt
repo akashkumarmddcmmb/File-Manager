@@ -4,10 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
-import android.os.Environment
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -48,10 +45,8 @@ fun StoragePermissionGate(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
     var showLanguageDialog by remember { mutableStateOf(false) }
-    var showAllFilesPermissionDialog by remember { mutableStateOf(false) }
     
-    // Check if permission gate was previously passed and runtime permissions are currently granted.
-    // If they revoked the permission, we want to show the permission screen again!
+    // Check if permission gate was previously passed and standard permissions are currently granted.
     val isAlreadyPassed = remember {
         prefs.getBoolean("permission_gate_passed", false) && checkRuntimePermissionsGranted(context)
     }
@@ -61,40 +56,11 @@ fun StoragePermissionGate(
     // Track which action was requested when launching permissions
     var pendingAction by remember { mutableStateOf(PendingPermissionAction.NONE) }
 
-    // Launcher for settings-based All Files Access (Phone Memory & SD Card)
-    val allFilesSettingsLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { _ ->
-        val bothGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager() && checkStandardPermissionsGranted(context)
-        } else {
-            checkStandardPermissionsGranted(context)
-        }
-
-        if (bothGranted) {
-            prefs.edit().putBoolean("permission_gate_passed", true).apply()
-            isInitialGatePassed = true
-            when (pendingAction) {
-                PendingPermissionAction.CLEAN -> onOpenClean()
-                PendingPermissionAction.SAFE_FOLDER -> onOpenSafeFolder()
-                else -> onPermissionGranted()
-            }
-        } else {
-            val deniedMsg = if (language == AppLanguage.HINDI) {
-                "फ़ोन मेमोरी और एसडी कार्ड की अनुमति नहीं मिली!"
-            } else {
-                "Phone memory and SD Card access permission not granted!"
-            }
-            android.widget.Toast.makeText(context, deniedMsg, android.widget.Toast.LENGTH_LONG).show()
-        }
-        pendingAction = PendingPermissionAction.NONE
-    }
-
-    // Launcher for standard initial Android native runtime permissions
+    // Launcher for standard in-app Android native runtime permissions
     val runtimePermissionsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        // Check if critical storage permissions are actually granted
+        // Check if storage permission was granted on-screen by the user
         val isGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             results[Manifest.permission.READ_MEDIA_AUDIO] == true ||
             results[Manifest.permission.READ_MEDIA_VIDEO] == true ||
@@ -104,20 +70,15 @@ fun StoragePermissionGate(
         }
 
         if (isGranted) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-                showAllFilesPermissionDialog = true
-            } else {
-                prefs.edit().putBoolean("permission_gate_passed", true).apply()
-                isInitialGatePassed = true
-                when (pendingAction) {
-                    PendingPermissionAction.CLEAN -> onOpenClean()
-                    PendingPermissionAction.SAFE_FOLDER -> onOpenSafeFolder()
-                    else -> onPermissionGranted()
-                }
-                pendingAction = PendingPermissionAction.NONE
+            prefs.edit().putBoolean("permission_gate_passed", true).apply()
+            isInitialGatePassed = true
+            when (pendingAction) {
+                PendingPermissionAction.CLEAN -> onOpenClean()
+                PendingPermissionAction.SAFE_FOLDER -> onOpenSafeFolder()
+                else -> onPermissionGranted()
             }
+            pendingAction = PendingPermissionAction.NONE
         } else {
-            // Permission denied! Keep user on onboarding screen, show informative message
             val deniedMsg = if (language == AppLanguage.HINDI) {
                 "स्टोरेज की अनुमति नहीं दी गई! कृपया काम करने के लिए अनुमति दें।"
             } else {
@@ -152,7 +113,7 @@ fun StoragePermissionGate(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Green Folder Badge (Now interactive and requests permission)
+                        // Green Folder Badge (Interactive, triggers in-app runtime permission popup)
                         Box(
                             modifier = Modifier
                                 .size(88.dp)
@@ -164,13 +125,8 @@ fun StoragePermissionGate(
                                         isInitialGatePassed = true
                                         onPermissionGranted()
                                     } else {
-                                        if (checkStandardPermissionsGranted(context)) {
-                                            pendingAction = PendingPermissionAction.DEFAULT
-                                            showAllFilesPermissionDialog = true
-                                        } else {
-                                            pendingAction = PendingPermissionAction.DEFAULT
-                                            triggerNativeSystemPermissions(runtimePermissionsLauncher)
-                                        }
+                                        pendingAction = PendingPermissionAction.DEFAULT
+                                        triggerNativeSystemPermissions(runtimePermissionsLauncher)
                                     }
                                 },
                             contentAlignment = Alignment.Center
@@ -201,9 +157,9 @@ fun StoragePermissionGate(
                         // Description
                         Text(
                             text = if (language == AppLanguage.HINDI)
-                                "फ़ाइल्स (आकाश कुमार द्वारा) को आपके स्थानीय स्टोरेज पर मौजूद फोटो, वीडियो, म्यूज़िक और दस्तावेज़ों को ढूंढने, व्यवस्थित करने और प्रबंधित करने के लिए अनुमति चाहिए।"
+                                "फ़ाइल्स को आपके लोकल स्टोरेज पर मौजूद फोटो, वीडियो, म्यूज़िक और दस्तावेज़ों को ढूंढने, व्यवस्थित करने और प्रबंधित करने के लिए अनुमति चाहिए।"
                             else
-                                "Files (by Akash Kumar) needs permission to find, organize, and manage photos, videos, music, and documents on your local storage.",
+                                "Files needs permission to find, organize, and manage photos, videos, music, and documents on your local storage.",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontSize = 15.sp,
                                 lineHeight = 22.sp
@@ -233,13 +189,8 @@ fun StoragePermissionGate(
                                             isInitialGatePassed = true
                                             onOpenClean()
                                         } else {
-                                            if (checkStandardPermissionsGranted(context)) {
-                                                pendingAction = PendingPermissionAction.CLEAN
-                                                showAllFilesPermissionDialog = true
-                                            } else {
-                                                pendingAction = PendingPermissionAction.CLEAN
-                                                triggerNativeSystemPermissions(runtimePermissionsLauncher)
-                                            }
+                                            pendingAction = PendingPermissionAction.CLEAN
+                                            triggerNativeSystemPermissions(runtimePermissionsLauncher)
                                         }
                                     },
                                     shape = RoundedCornerShape(16.dp),
@@ -273,7 +224,7 @@ fun StoragePermissionGate(
                                                 style = MaterialTheme.typography.titleMedium.copy(
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 15.sp
-                                                ),
+                                                 ),
                                                 color = Color.White
                                             )
                                             Text(
@@ -299,13 +250,8 @@ fun StoragePermissionGate(
                                             isInitialGatePassed = true
                                             onOpenSafeFolder()
                                         } else {
-                                            if (checkStandardPermissionsGranted(context)) {
-                                                pendingAction = PendingPermissionAction.SAFE_FOLDER
-                                                showAllFilesPermissionDialog = true
-                                            } else {
-                                                pendingAction = PendingPermissionAction.SAFE_FOLDER
-                                                triggerNativeSystemPermissions(runtimePermissionsLauncher)
-                                            }
+                                            pendingAction = PendingPermissionAction.SAFE_FOLDER
+                                            triggerNativeSystemPermissions(runtimePermissionsLauncher)
                                         }
                                     },
                                     shape = RoundedCornerShape(16.dp),
@@ -326,7 +272,7 @@ fun StoragePermissionGate(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Shield,
+                                                imageVector = Icons.Default.Lock,
                                                 contentDescription = null,
                                                 tint = Color(0xFF00C853),
                                                 modifier = Modifier.size(22.dp)
@@ -343,61 +289,9 @@ fun StoragePermissionGate(
                                                 color = Color.White
                                             )
                                             Text(
-                                                text = if (language == AppLanguage.HINDI) "निजी फाइलों को PIN से सुरक्षित करें" else "Protect private files with PIN encryption",
+                                                text = if (language == AppLanguage.HINDI) "अपनी निजी फ़ाइलें छुपाएं और सुरक्षित रखें" else "Hide and protect your private files",
                                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                                 color = Color(0xFF9E9E9E)
-                                            )
-                                        }
-                                        Icon(
-                                            imageVector = Icons.Default.ChevronRight,
-                                            contentDescription = null,
-                                            tint = Color(0xFF757575),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-
-                                // Feature 3: App Language (भाषा बदलें)
-                                Surface(
-                                    onClick = { showLanguageDialog = true },
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = Color(0xFF232429),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 12.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(44.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF1B382B)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Language,
-                                                contentDescription = null,
-                                                tint = Color(0xFF00C853),
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(14.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = if (language == AppLanguage.HINDI) "ऐप भाषा (Language)" else "App Language",
-                                                style = MaterialTheme.typography.titleMedium.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 15.sp
-                                                ),
-                                                color = Color.White
-                                            )
-                                            Text(
-                                                text = "${language.nativeName} (${language.englishName})",
-                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold),
-                                                color = Color(0xFF00C853)
                                             )
                                         }
                                         Icon(
@@ -414,7 +308,7 @@ fun StoragePermissionGate(
 
                     Spacer(modifier = Modifier.height(32.dp))
 
-                    // Green Pill Grant Button ("अनुमति दें")
+                    // Green Pill Grant Button ("अनुमति दें") - Triggers standard runtime popup directly in-app
                     Button(
                         onClick = {
                             if (checkRuntimePermissionsGranted(context)) {
@@ -422,13 +316,8 @@ fun StoragePermissionGate(
                                 isInitialGatePassed = true
                                 onPermissionGranted()
                             } else {
-                                if (checkStandardPermissionsGranted(context)) {
-                                    pendingAction = PendingPermissionAction.DEFAULT
-                                    showAllFilesPermissionDialog = true
-                                } else {
-                                    pendingAction = PendingPermissionAction.DEFAULT
-                                    triggerNativeSystemPermissions(runtimePermissionsLauncher)
-                                }
+                                pendingAction = PendingPermissionAction.DEFAULT
+                                triggerNativeSystemPermissions(runtimePermissionsLauncher)
                             }
                         },
                         modifier = Modifier
@@ -527,69 +416,6 @@ fun StoragePermissionGate(
                 textContentColor = Color.White
             )
         }
-
-        if (showAllFilesPermissionDialog) {
-            AlertDialog(
-                onDismissRequest = { showAllFilesPermissionDialog = false },
-                icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFF00C853)) },
-                title = {
-                    Text(
-                        text = if (language == AppLanguage.HINDI) "फ़ोन मेमोरी और SD कार्ड एक्सेस आवश्यक है" else "Phone Memory & SD Card Access Required",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center
-                    )
-                },
-                text = {
-                    Text(
-                        text = if (language == AppLanguage.HINDI) {
-                            "सभी फाइलों (म्यूजिक, फोटो, वीडियो और एसडी कार्ड) को पूरी तरह से स्कैन करने और व्यवस्थित करने के लिए, कृपया सेटिंग में 'सभी फाइलों तक पहुंच' (All Files Access) की अनुमति चालू करें।"
-                        } else {
-                            "To completely scan, play music, and manage files on both your Phone Memory and external SD Card, please enable 'All Files Access' permission in the system settings."
-                        },
-                        fontSize = 14.sp,
-                        color = Color(0xFFE0E0E0),
-                        textAlign = TextAlign.Center
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showAllFilesPermissionDialog = false
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                                    data = Uri.parse("package:${context.packageName}")
-                                }
-                                try {
-                                    allFilesSettingsLauncher.launch(intent)
-                                } catch (e: Exception) {
-                                    val fallbackIntent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                                    try {
-                                        allFilesSettingsLauncher.launch(fallbackIntent)
-                                    } catch (ex: Exception) {
-                                        // Safe catch
-                                    }
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF00C853),
-                            contentColor = Color.Black
-                        )
-                    ) {
-                        Text(if (language == AppLanguage.HINDI) "सेटिंग में जाएं" else "Go to Settings", fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAllFilesPermissionDialog = false }) {
-                        Text(if (language == AppLanguage.HINDI) "बाद में" else "Later", color = Color(0xFF9E9E9E))
-                    }
-                },
-                containerColor = Color(0xFF1E1F23),
-                titleContentColor = Color.White,
-                textContentColor = Color.White
-            )
-        }
     }
 }
 
@@ -604,13 +430,7 @@ private fun checkStandardPermissionsGranted(context: Context): Boolean {
 }
 
 private fun checkRuntimePermissionsGranted(context: Context): Boolean {
-    val hasStandard = checkStandardPermissionsGranted(context)
-    val hasAllFilesAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        Environment.isExternalStorageManager()
-    } else {
-        true
-    }
-    return hasStandard && hasAllFilesAccess
+    return checkStandardPermissionsGranted(context)
 }
 
 private fun triggerNativeSystemPermissions(
@@ -624,6 +444,7 @@ private fun triggerNativeSystemPermissions(
         permsList.add(Manifest.permission.READ_MEDIA_AUDIO)
     } else {
         permsList.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        permsList.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
     }
     try {
         launcher.launch(permsList.toTypedArray())

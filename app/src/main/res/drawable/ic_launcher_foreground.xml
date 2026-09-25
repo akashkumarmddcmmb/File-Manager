@@ -4,37 +4,37 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     
-    <!-- Dropshadow layer for depth -->
+    <!-- Dropshadow layer for luxurious depth -->
     <path
-        android:fillColor="#1A000000"
+        android:fillColor="#3D000000"
         android:pathData="M24,40.5 h56 c3.3,0 6,2.7 6,6 v38 c0,3.3 -2.7,6 -6,6 h-50 c-3.3,0 -6,-2.7 -6,-6 z" />
 
     <!-- Sheets of Paper peaking out from background -->
-    <!-- Sheet 2 (backmost) -->
+    <!-- Sheet 2 (backmost) in Electric Neon Cyan -->
     <path
-        android:fillColor="#B2DFDB"
+        android:fillColor="#00E5FF"
         android:pathData="M44,26 h24 c1.1,0 2,0.9 2,2 v18 h-28 v-18 c0,-1.1 0.9,-2 2,-2 z" />
         
-    <!-- Sheet 1 (middle) -->
+    <!-- Sheet 1 (middle) in Gleaming White Cyan -->
     <path
-        android:fillColor="#E0F2F1"
+        android:fillColor="#E0F7FA"
         android:pathData="M34,32 h36 c1.1,0 2,0.9 2,2 v16 h-40 v-16 c0,-1.1 0.9,-2 2,-2 z" />
 
-    <!-- Folder Back Cover -->
+    <!-- Folder Back Cover in Deep Luxury Purple -->
     <path
-        android:fillColor="#00796B"
+        android:fillColor="#6200EA"
         android:pathData="M24,38 h56 c3.3,0 6,2.7 6,6 v38 c0,3.3 -2.7,6 -6,6 h-50 c-3.3,0 -6,-2.7 -6,-6 z" />
 
-    <!-- Folder Front Flap with tab style -->
+    <!-- Folder Front Flap with tab style in Vibrant Neon Violet -->
     <path
-        android:fillColor="#009688"
+        android:fillColor="#7C4DFF"
         android:pathData="M24,48 h16 l6,6 h34 c3.3,0 6,2.7 6,6 v22 c0,3.3 -2.7,6 -6,6 h-50 c-3.3,0 -6,-2.7 -6,-6 z" />
         
-    <!-- Accent folder details on flap -->
+    <!-- Glowing Accent lines on flap in Glowing Emerald Green -->
     <path
-        android:fillColor="#80CBC4"
+        android:fillColor="#00E676"
         android:pathData="M34,64 h16 c1.1,0 2,0.9 2,2 c0,1.1 -0.9,2 -2,2 h-16 c-1.1,0 -2,-0.9 -2,-2 c0,-1.1 0.9,-2 2,-2 z" />
     <path
-        android:fillColor="#80CBC4"
+        android:fillColor="#00E676"
         android:pathData="M34,72 h24 c1.1,0 2,0.9 2,2 c0,1.1 -0.9,2 -2,2 h-24 c-1.1,0 -2,-0.9 -2,-2 c0,-1.1 0.9,-2 2,-2 z" />
 </vector>

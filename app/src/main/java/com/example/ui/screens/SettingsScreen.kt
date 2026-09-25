@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
 import com.example.model.translate
+import com.example.model.ThemeMode
+import com.example.model.AccentColorType
 import com.example.ui.modals.OnScreenPermissionModal
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,16 +43,37 @@ fun SettingsScreen(
     githubRepoPath: String,
     onGithubRepoPathChange: (String) -> Unit,
     onCheckForUpdates: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    accentColor: AccentColorType,
+    onAccentColorChange: (AccentColorType) -> Unit,
+    showHiddenFiles: Boolean,
+    onShowHiddenFilesChange: (Boolean) -> Unit,
+    junkAlertEnabled: Boolean,
+    onJunkAlertEnabledChange: (Boolean) -> Unit,
+    backgroundMusicEnabled: Boolean,
+    onBackgroundMusicEnabledChange: (Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val appVersion = remember(context) { com.example.update.AppUpdateManager.getAppVersionName(context) }
 
-    var isDarkTheme by remember { mutableStateOf("system") } // "system", "light", "dark"
-    var showHiddenFiles by remember { mutableStateOf(false) }
-    var junkAlertEnabled by remember { mutableStateOf(true) }
-    var backgroundMusicEnabled by remember { mutableStateOf(true) }
-    var selectedAccent by remember { mutableStateOf("dynamic") }
+    val isDarkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> "system"
+        ThemeMode.LIGHT -> "light"
+        ThemeMode.DARK -> "dark"
+    }
+    val selectedAccent = when (accentColor) {
+        AccentColorType.SYSTEM_DYNAMIC -> "dynamic"
+        AccentColorType.EMERALD -> "emerald"
+        AccentColorType.OCEAN -> "ocean"
+        AccentColorType.ROYAL -> "royal"
+        AccentColorType.SUNSET -> "sunset"
+        AccentColorType.GOLD -> "gold"
+        AccentColorType.ARCTIC -> "arctic"
+        AccentColorType.CUSTOM -> "custom"
+    }
+
     var showOnScreenPermissionModal by remember { mutableStateOf(false) }
     var showLanguagePicker by remember { mutableStateOf(false) }
 
@@ -224,7 +247,7 @@ fun SettingsScreen(
                         ) {
                             FilterChip(
                                 selected = isDarkTheme == "system",
-                                onClick = { isDarkTheme = "system" },
+                                onClick = { onThemeModeChange(ThemeMode.SYSTEM) },
                                 label = { Text(if (isHindi) "सिस्टम" else "System", fontSize = 11.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = Color(0xFF00C853),
@@ -233,12 +256,12 @@ fun SettingsScreen(
                             )
                             FilterChip(
                                 selected = isDarkTheme == "light",
-                                onClick = { isDarkTheme = "light" },
+                                onClick = { onThemeModeChange(ThemeMode.LIGHT) },
                                 label = { Text(if (isHindi) "लाइट" else "Light", fontSize = 11.sp) }
                             )
                             FilterChip(
                                 selected = isDarkTheme == "dark",
-                                onClick = { isDarkTheme = "dark" },
+                                onClick = { onThemeModeChange(ThemeMode.DARK) },
                                 label = { Text(if (isHindi) "डार्क" else "Dark", fontSize = 11.sp) }
                             )
                         }
@@ -289,7 +312,7 @@ fun SettingsScreen(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { selectedAccent = "dynamic" },
+                                .clickable { onAccentColorChange(AccentColorType.SYSTEM_DYNAMIC) },
                             shape = RoundedCornerShape(16.dp),
                             color = if (selectedAccent == "dynamic") Color(0xFF1B382B) else MaterialTheme.colorScheme.surface,
                             border = if (selectedAccent == "dynamic") ButtonDefaults.outlinedButtonBorder else null
@@ -336,13 +359,13 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            ColorSwatchItem("Emerald", Color(0xFF00C853), selectedAccent == "emerald") { selectedAccent = "emerald" }
-                            ColorSwatchItem("Ocean", Color(0xFF0288D1), selectedAccent == "ocean") { selectedAccent = "ocean" }
-                            ColorSwatchItem("Royal", Color(0xFF5E35B1), selectedAccent == "royal") { selectedAccent = "royal" }
-                            ColorSwatchItem("Sunset", Color(0xFFE64A19), selectedAccent == "sunset") { selectedAccent = "sunset" }
-                            ColorSwatchItem("Gold", Color(0xFFFBC02D), selectedAccent == "gold") { selectedAccent = "gold" }
-                            ColorSwatchItem("Arctic", Color(0xFF00BCD4), selectedAccent == "arctic") { selectedAccent = "arctic" }
-                            ColorSwatchCustomItem("Custom", selectedAccent == "custom") { selectedAccent = "custom" }
+                            ColorSwatchItem("Emerald", Color(0xFF00C853), selectedAccent == "emerald") { onAccentColorChange(AccentColorType.EMERALD) }
+                            ColorSwatchItem("Ocean", Color(0xFF0288D1), selectedAccent == "ocean") { onAccentColorChange(AccentColorType.OCEAN) }
+                            ColorSwatchItem("Royal", Color(0xFF5E35B1), selectedAccent == "royal") { onAccentColorChange(AccentColorType.ROYAL) }
+                            ColorSwatchItem("Sunset", Color(0xFFE64A19), selectedAccent == "sunset") { onAccentColorChange(AccentColorType.SUNSET) }
+                            ColorSwatchItem("Gold", Color(0xFFFBC02D), selectedAccent == "gold") { onAccentColorChange(AccentColorType.GOLD) }
+                            ColorSwatchItem("Arctic", Color(0xFF00BCD4), selectedAccent == "arctic") { onAccentColorChange(AccentColorType.ARCTIC) }
+                            ColorSwatchCustomItem("Custom", selectedAccent == "custom") { onAccentColorChange(AccentColorType.CUSTOM) }
                         }
                     }
 
@@ -370,7 +393,7 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = showHiddenFiles,
-                            onCheckedChange = { showHiddenFiles = it },
+                            onCheckedChange = onShowHiddenFilesChange,
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF00C853))
                         )
                     }
@@ -454,7 +477,7 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = junkAlertEnabled,
-                            onCheckedChange = { junkAlertEnabled = it },
+                            onCheckedChange = onJunkAlertEnabledChange,
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFFF9AB00))
                         )
                     }
@@ -644,7 +667,7 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = backgroundMusicEnabled,
-                            onCheckedChange = { backgroundMusicEnabled = it },
+                            onCheckedChange = onBackgroundMusicEnabledChange,
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF7C4DFF))
                         )
                     }

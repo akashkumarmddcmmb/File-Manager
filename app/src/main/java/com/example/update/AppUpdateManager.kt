@@ -1,12 +1,18 @@
 package com.example.update
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
@@ -101,6 +107,107 @@ object AppUpdateManager {
         } catch (e: Exception) {
             Log.e(TAG, "Error checking for updates", e)
             UpdateResult.Error(e.localizedMessage ?: "Unknown network connection issue.")
+        }
+    }
+
+    /**
+     * Downloads an APK from [downloadUrl] and saves it to secure cache folder.
+     * Updates [onProgress] with values from 0.0 to 1.0.
+     */
+    suspend fun downloadApk(
+        context: Context,
+        downloadUrl: String,
+        onProgress: (Float) -> Unit
+    ): File? = withContext(Dispatchers.IO) {
+        try {
+            val url = URL(downloadUrl)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = 10000
+            connection.readTimeout = 15000
+            connection.connect()
+
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                Log.e(TAG, "Download failed, server code: ${connection.responseCode}")
+                return@withContext null
+            }
+
+            val fileLength = connection.contentLength
+            val cacheDir = File(context.cacheDir, "updates")
+            if (!cacheDir.exists()) {
+                cacheDir.mkdirs()
+            }
+            // Clean up any old update APKs first to save space
+            cacheDir.listFiles()?.forEach { it.delete() }
+
+            val apkFile = File(cacheDir, "update_release.apk")
+            connection.inputStream.use { input ->
+                FileOutputStream(apkFile).use { output ->
+                    val data = ByteArray(4096)
+                    var total: Long = 0
+                    var count: Int
+                    while (input.read(data).also { count = it } != -1) {
+                        total += count
+                        if (fileLength > 0) {
+                            onProgress(total.toFloat() / fileLength.toFloat())
+                        }
+                        output.write(data, 0, count)
+                    }
+                    output.flush()
+                }
+            }
+            return@withContext apkFile
+        } catch (e: Exception) {
+            Log.e(TAG, "Error downloading APK: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Checks if the app is allowed to install packages.
+     * If not, redirects the user to the Settings screen to enable it.
+     * If allowed, triggers the install of [apkFile].
+     * Returns true if permission is granted and installation is triggered.
+     */
+    fun checkPermissionAndInstall(context: Context, apkFile: File): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!context.packageManager.canRequestPackageInstalls()) {
+                // Request Permission by opening Settings
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to launch ACTION_MANAGE_UNKNOWN_APP_SOURCES: ${e.message}")
+                }
+                return false
+            }
+        }
+        
+        // We have permission (or SDK < 26), perform install directly!
+        triggerInstall(context, apkFile)
+        return true
+    }
+
+    /**
+     * Installs the downloaded [apkFile] using FileProvider.
+     */
+    fun triggerInstall(context: Context, apkFile: File) {
+        try {
+            val apkUri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.provider",
+                apkFile
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Installation trigger failed: ${e.message}", e)
         }
     }
 

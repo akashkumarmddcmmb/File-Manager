@@ -12,8 +12,9 @@
             android:endX="108"
             android:endY="108"
             android:type="linear">
-            <item android:offset="0" android:color="#00E676" />
-            <item android:offset="1" android:color="#004D40" />
+            <!-- Luxury Dark Indigo to Futuristic Slate Black gradient -->
+            <item android:offset="0" android:color="#1A1B2F" />
+            <item android:offset="1" android:color="#0B0C10" />
         </gradient>
     </path>
 </vector>

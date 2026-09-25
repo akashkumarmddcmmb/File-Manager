@@ -58,21 +58,37 @@ class MainActivity : ComponentActivity() {
             var hasPermissionGranted by remember { mutableStateOf(initialPassed) }
 
             LaunchedEffect(Unit) {
-                viewModel.setContext(context.applicationContext)
-                val audioManager = com.example.audio.Media3AudioManager(context.applicationContext)
+                val appCtx = context.applicationContext
+                viewModel.setContext(appCtx)
+                // Pre-warm the synthesized melody cache asynchronously on startup
+                com.example.audio.AudioSampleGenerator.prewarmCache(appCtx)
+                val audioManager = com.example.audio.Media3AudioManager(appCtx)
                 viewModel.setMedia3AudioManager(audioManager)
-                viewModel.refreshRealStorage(context.applicationContext)
+                viewModel.refreshRealStorage(appCtx)
                 // Silent update check on startup (only shows dialog if update is available)
-                viewModel.triggerCheckForUpdates(context.applicationContext, showIfNoUpdate = false)
+                viewModel.triggerCheckForUpdates(appCtx, showIfNoUpdate = false)
             }
 
-            FilesTheme(darkTheme = true) {
+            FilesTheme(
+                themeMode = uiState.themeMode,
+                accentColor = uiState.accentColor
+            ) {
                 MainAppContent(
                     uiState = uiState,
                     viewModel = viewModel
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.setAppInForeground(true)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        viewModel.setAppInForeground(false)
     }
 }
 
@@ -431,6 +447,11 @@ private fun MainAppContent(
                             }
                             MainTab.BROWSE -> {
                                 val recents = uiState.files.filter { it.isRecent && !it.isInTrash && !it.isInSafeFolder }
+                                val categoryCounts = remember(uiState.files) {
+                                    uiState.files.filter { !it.isInSafeFolder && !it.isInTrash }
+                                        .groupBy { it.category }
+                                        .mapValues { it.value.size }
+                                }
                                 BrowseScreen(
                                     recentFiles = recents,
                                     storageDevices = uiState.storageDevices,
@@ -483,7 +504,7 @@ private fun MainAppContent(
                                     onOpenFeatureList = { navigateToScreen(AppNavScreen.FEATURE_LIST) },
                                     onRefreshDevices = { viewModel.refreshRealStorage(context) },
                                     getCategoryText = { cat ->
-                                        val count = viewModel.getCategoryCount(cat)
+                                        val count = categoryCounts[cat] ?: 0
                                         "${count} ${if (uiState.language == AppLanguage.HINDI) "फाइलें" else "files"}"
                                     }
                                 )
@@ -549,6 +570,16 @@ private fun MainAppContent(
                             githubRepoPath = uiState.githubRepoPath,
                             onGithubRepoPathChange = { viewModel.setGithubRepoPath(it) },
                             onCheckForUpdates = { viewModel.triggerCheckForUpdates(context, showIfNoUpdate = true) },
+                            themeMode = uiState.themeMode,
+                            onThemeModeChange = { viewModel.setThemeMode(it) },
+                            accentColor = uiState.accentColor,
+                            onAccentColorChange = { viewModel.setAccentColor(it) },
+                            showHiddenFiles = uiState.showHiddenFiles,
+                            onShowHiddenFilesChange = { viewModel.toggleShowHiddenFiles() },
+                            junkAlertEnabled = uiState.junkAlertEnabled,
+                            onJunkAlertEnabledChange = { viewModel.toggleJunkAlert() },
+                            backgroundMusicEnabled = uiState.backgroundMusicPlayback,
+                            onBackgroundMusicEnabledChange = { viewModel.toggleBackgroundMusic() },
                             onBack = { handleBackNavigation() }
                         )
                     }
@@ -784,15 +815,10 @@ private fun MainAppContent(
                     }
                     if (result is UpdateResult.Success && result.updateAvailable) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                         Button(
                             onClick = {
                                 viewModel.setUpdateDialogVisible(false)
-                                try {
-                                    uriHandler.openUri(result.downloadUrl)
-                                } catch (e: Exception) {
-                                    uriHandler.openUri(result.releasePageUrl)
-                                }
+                                viewModel.startDownloadingUpdate(context, result.downloadUrl)
                             },
                             shape = RoundedCornerShape(20.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -811,6 +837,82 @@ private fun MainAppContent(
             containerColor = MaterialTheme.colorScheme.surface,
             titleContentColor = MaterialTheme.colorScheme.onSurface,
             textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
+    // 1. In-App Update Downloading Progress Dialog
+    if (uiState.isDownloadingUpdate) {
+        val isHindi = uiState.language == AppLanguage.HINDI
+        AlertDialog(
+            onDismissRequest = {}, // Disable dismiss to keep state integral
+            title = {
+                Text(
+                    text = if (isHindi) "अपडेट डाउनलोड हो रहा है..." else "Downloading Update...",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        progress = { uiState.updateDownloadProgress },
+                        color = Color(0xFF00C853),
+                        strokeWidth = 4.dp,
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Text(
+                        text = "${(uiState.updateDownloadProgress * 100).toInt()}%",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                    Text(
+                        text = if (isHindi) "कृपया प्रतीक्षा करें, अपडेट बैकग्राउंड में डाउनलोड हो रहा है।" else "Please wait, downloading release APK in background.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    // 2. In-App Update Ready for Installation Dialog
+    if (uiState.downloadedApkPath != null && !uiState.isDownloadingUpdate) {
+        val isHindi = uiState.language == AppLanguage.HINDI
+        AlertDialog(
+            onDismissRequest = { /* Force action to install */ },
+            title = {
+                Text(
+                    text = if (isHindi) "अपडेट तैयार है! 🚀" else "Update Ready! 🚀",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = if (isHindi) 
+                        "अपडेट फाइल सफलतापूर्वक डाउनलोड हो गई है। कृपया इंस्टॉलेशन पूर्ण करने के लिए 'इंस्टॉल करें' पर टैप करें। यदि आपसे अज्ञात ऐप्स इंस्टॉल करने की अनुमति मांगी जाए, तो उसे चालू करें।"
+                        else 
+                        "The update has been successfully downloaded. Tap 'Install' to apply the update. If requested, please allow installation of unknown apps in settings."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.installApkDirectly(context) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853))
+                ) {
+                    Text(text = if (isHindi) "इंस्टॉल करें" else "Install")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.installApkDirectly(context) }) {
+                    Text(text = if (isHindi) "रद्द करें" else "Cancel")
+                }
+            }
         )
     }
 

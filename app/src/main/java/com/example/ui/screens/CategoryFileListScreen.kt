@@ -1562,7 +1562,7 @@ fun CategoryFileListScreen(
                                                 )
                                             }
                                             DropdownMenuItem(
-                                                text = { Text(if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर में भेजें" else "Move to Safe folder") },
+                                                text = { Text(language.translate("Move to Safe folder")) },
                                                 leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF00C853)) },
                                                 onClick = {
                                                     showMenu = false
@@ -1570,7 +1570,7 @@ fun CategoryFileListScreen(
                                                 }
                                             )
                                             DropdownMenuItem(
-                                                text = { Text(if (language == AppLanguage.HINDI) "ट्रैश में भेजें" else "Move to Trash") },
+                                                text = { Text(language.translate("Move to Trash")) },
                                                 leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD93025)) },
                                                 onClick = {
                                                     showMenu = false
@@ -1596,14 +1596,14 @@ fun CategoryFileListScreen(
             },
             title = {
                 Text(
-                    text = if (language == AppLanguage.HINDI) "नया फ़ोल्डर बनाएं" else "Create New Folder",
+                    text = language.translate("Create New Folder"),
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Column {
                     Text(
-                        text = if (language == AppLanguage.HINDI) "वर्तमान फ़ोल्डर में नया फ़ोल्डर बनाएं:" else "Create a new folder in current directory:",
+                        text = language.translate("Create a new folder in current directory:"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1611,7 +1611,7 @@ fun CategoryFileListScreen(
                     OutlinedTextField(
                         value = newFolderNameInput,
                         onValueChange = { newFolderNameInput = it },
-                        label = { Text(if (language == AppLanguage.HINDI) "फ़ोल्डर का नाम" else "Folder Name") },
+                        label = { Text(language.translate("Folder Name")) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1641,7 +1641,7 @@ fun CategoryFileListScreen(
                         newFolderNameInput = ""
                     }
                 ) {
-                    Text(if (language == AppLanguage.HINDI) "बनाएं" else "Create")
+                    Text(language.translate("Create"))
                 }
             },
             dismissButton = {
@@ -1651,7 +1651,7 @@ fun CategoryFileListScreen(
                         newFolderNameInput = ""
                     }
                 ) {
-                    Text(if (language == AppLanguage.HINDI) "रद्द करें" else "Cancel")
+                    Text(language.translate("Cancel"))
                 }
             }
         )
@@ -1666,7 +1666,7 @@ fun CategoryFileListScreen(
             },
             title = {
                 Text(
-                    text = if (language == AppLanguage.HINDI) "फ़ोल्डर का नाम बदलें" else "Rename Folder",
+                    text = language.translate("Rename Folder"),
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -1675,7 +1675,7 @@ fun CategoryFileListScreen(
                     OutlinedTextField(
                         value = renameFolderInput,
                         onValueChange = { renameFolderInput = it },
-                        label = { Text(if (language == AppLanguage.HINDI) "नया नाम" else "New Name") },
+                        label = { Text(language.translate("New Name")) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1704,9 +1704,9 @@ fun CategoryFileListScreen(
                                     customFolders[idx] = oldFolder.copy(name = newName, path = destFile.absolutePath)
                                 }
                                 folderActionTrigger++
-                                Toast.makeText(context, if (language == AppLanguage.HINDI) "फ़ोल्डर का नाम बदला गया" else "Folder renamed successfully", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, language.translate("Folder renamed successfully"), Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(context, if (language == AppLanguage.HINDI) "नाम नहीं बदला जा सका" else "Failed to rename folder", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, language.translate("Failed to rename folder"), Toast.LENGTH_SHORT).show()
                             }
                         }
                         showRenameFolderDialog = false
@@ -1714,7 +1714,7 @@ fun CategoryFileListScreen(
                         renameFolderInput = ""
                     }
                 ) {
-                    Text(if (language == AppLanguage.HINDI) "बदलें" else "Rename")
+                    Text(language.translate("Rename"))
                 }
             },
             dismissButton = {
@@ -1725,13 +1725,26 @@ fun CategoryFileListScreen(
                         renameFolderInput = ""
                     }
                 ) {
-                    Text(if (language == AppLanguage.HINDI) "रद्द करें" else "Cancel")
+                    Text(language.translate("Cancel"))
                 }
             }
         )
     }
 
     if (showDeleteConfirmDialog && folderToDelete != null) {
+        val deleteDesc = when (language) {
+            AppLanguage.HINDI -> "क्या आप सचमुच फ़ोल्डर '${folderToDelete?.name}' और उसकी सभी फ़ाइलों को हमेशा के लिए हटाना चाहते हैं? यह प्रक्रिया वापस नहीं ली जा सकती।"
+            AppLanguage.SPANISH -> "¿Está seguro de que desea eliminar '${folderToDelete?.name}' y todo su contenido de forma permanente? Esta acción no se puede deshacer."
+            AppLanguage.MARATHI -> "तुम्हाला खरोखरच '${folderToDelete?.name}' आणि त्यातील सर्व सामग्री कायमची हटवायची आहे का? ही क्रिया पूर्ववत केली जाऊ शकत नाही."
+            AppLanguage.BENGALI -> "আপনি কি নিশ্চিত যে আপনি ফোল্ডার '${folderToDelete?.name}' এবং তার সমস্ত সামগ্রী স্থায়ীভাবে মুছে ফেলতে চান? এই কাজটি আর ফিরিয়ে নেওয়া যাবে না।"
+            AppLanguage.TAMIL -> "நிச்சயமாக நீங்கள் '${folderToDelete?.name}' மற்றும் அதன் அனைத்து உள்ளடக்கங்களையும் நிரந்தரமாக நீக்க விரும்புகிறீர்களா? இந்தச் செயலைத் திரும்பப் பெற முடியாது."
+            AppLanguage.TELUGU -> "మీరు ఖచ్చితంగా '${folderToDelete?.name}' మరియు దానిలోని అన్ని కంటెంట్‌లను శాశ్వతంగా తొలగించాలనుకుంటున్నారా? ఈ చర్యను రద్దు చేయలేము."
+            AppLanguage.GUJARATI -> "શું તમે ખરેખર '${folderToDelete?.name}' અને તેની બધી સામગ્રી કાયમ માટે કાઢી નાખવા માંગો છો? આ પ્રક્રિયા પાછી ખેંચી શકાતી નથી."
+            AppLanguage.PUNJABI -> "ਕੀ ਤੁਸੀਂ ਯਕੀਨਨ '${folderToDelete?.name}' ਅਤੇ ਇਸਦੀ ਸਾਰੀ ਸਮੱਗਰੀ ਨੂੰ ਹਮੇਸ਼ਾ ਲਈ ਹਟਾਉਣਾ ਚਾਹੁੰਦੇ ਹੋ? ਇਹ ਕਾਰਵਾਈ ਵਾਪਸ ਨਹੀਂ ਲਈ ਜਾ ਸਕਦੀ।"
+            AppLanguage.FRENCH -> "Êtes-vous sûr de vouloir supprimer '${folderToDelete?.name}' et tout son contenu définitivement? Cette action est irréversible."
+            AppLanguage.ARABIC -> "هل أنت متأكد من رغبتك في حذف '${folderToDelete?.name}' وجميع محتوياته بشكل دائم؟ لا يمكن التراجع عن هذا الإجراء."
+            else -> "Are you sure you want to delete '${folderToDelete?.name}' and all its contents permanently? This action cannot be undone."
+        }
         AlertDialog(
             onDismissRequest = {
                 showDeleteConfirmDialog = false
@@ -1739,17 +1752,12 @@ fun CategoryFileListScreen(
             },
             title = {
                 Text(
-                    text = if (language == AppLanguage.HINDI) "फ़ोल्डर हटाएं?" else "Delete Folder?",
+                    text = language.translate("Delete Folder?"),
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
-                Text(
-                    text = if (language == AppLanguage.HINDI) 
-                        "क्या आप सचमुच फ़ोल्डर '${folderToDelete?.name}' और उसकी सभी फ़ाइलों को हमेशा के लिए हटाना चाहते हैं? यह प्रक्रिया वापस नहीं ली जा सकती।" 
-                        else 
-                        "Are you sure you want to delete '${folderToDelete?.name}' and all its contents permanently? This action cannot be undone."
-                )
+                Text(text = deleteDesc)
             },
             confirmButton = {
                 Button(
@@ -1770,9 +1778,9 @@ fun CategoryFileListScreen(
                             if (success) {
                                 customFolders.removeAll { it.path == currentFolder.path }
                                 folderActionTrigger++
-                                Toast.makeText(context, if (language == AppLanguage.HINDI) "फ़ोल्डर हटा दिया गया" else "Folder deleted", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, language.translate("Folder deleted"), Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(context, if (language == AppLanguage.HINDI) "हटाया नहीं जा सका" else "Failed to delete folder", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, language.translate("Failed to delete folder"), Toast.LENGTH_SHORT).show()
                             }
                         }
                         showDeleteConfirmDialog = false
@@ -1780,7 +1788,7 @@ fun CategoryFileListScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD93025), contentColor = Color.White)
                 ) {
-                    Text(if (language == AppLanguage.HINDI) "हटाएं" else "Delete")
+                    Text(language.translate("Delete"))
                 }
             },
             dismissButton = {
@@ -1790,7 +1798,7 @@ fun CategoryFileListScreen(
                         folderToDelete = null
                     }
                 ) {
-                    Text(if (language == AppLanguage.HINDI) "रद्द करें" else "Cancel")
+                    Text(language.translate("Cancel"))
                 }
             }
         )

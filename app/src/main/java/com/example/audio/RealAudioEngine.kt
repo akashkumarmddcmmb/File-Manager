@@ -5,8 +5,6 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import java.io.File
 
@@ -16,41 +14,14 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
     private var isPlayingState = false
     private var currentDurationSeconds = 240
     private var currentPositionSeconds = 0
-    
-    private val handler = Handler(Looper.getMainLooper())
-    private var progressListener: ((positionSeconds: Int, durationSeconds: Int, isPlaying: Boolean) -> Unit)? = null
     private var completionListener: (() -> Unit)? = null
 
-    private val progressRunnable = object : Runnable {
-        override fun run() {
-            try {
-                mediaPlayer?.let { player ->
-                    if (isPlayingState && player.isPlaying) {
-                        val currentMs = player.currentPosition
-                        val durMs = player.duration
-                        val posSec = (currentMs / 1000).coerceAtLeast(0)
-                        val durSec = if (durMs > 0) (durMs / 1000) else currentDurationSeconds
-                        currentPositionSeconds = posSec
-                        progressListener?.invoke(posSec, durSec, true)
-                        handler.postDelayed(this, 1000)
-                        return
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(tag, "Progress tracker exception: ${e.message}")
-            }
-            if (isPlayingState) {
-                handler.postDelayed(this, 1000)
-            }
-        }
+    init {
+        // High speed native engine loaded instantly
     }
 
     fun setContext(context: Context) {
         this.defaultContext = context
-    }
-
-    fun setProgressListener(listener: (positionSeconds: Int, durationSeconds: Int, isPlaying: Boolean) -> Unit) {
-        this.progressListener = listener
     }
 
     fun setCompletionListener(listener: () -> Unit) {
@@ -100,7 +71,7 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
                     }
                 }
 
-                // If demo file or network/storage missing, use synthesized melody
+                // If demo file or network/storage missing, use pre-warmed synthesized melody
                 if (!sourceSet && context != null) {
                     try {
                         val sampleFile = AudioSampleGenerator.getOrCreateSampleAudio(context, fileName, filePath)
@@ -130,8 +101,6 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
                         }
                         player.start()
                         isPlayingState = true
-                        progressListener?.invoke(startSeconds, currentDurationSeconds, true)
-                        startProgressTracker()
                     } catch (e: Exception) {
                         Log.e(tag, "OnPrepared start failed: ${e.message}", e)
                     }
@@ -139,15 +108,12 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
 
                 setOnCompletionListener {
                     isPlayingState = false
-                    stopProgressTracker()
-                    progressListener?.invoke(currentDurationSeconds, currentDurationSeconds, false)
                     completionListener?.invoke()
                 }
 
                 setOnErrorListener { _, what, extra ->
                     Log.e(tag, "MediaPlayer error: what=$what extra=$extra")
                     isPlayingState = false
-                    stopProgressTracker()
                     true // Handled
                 }
 
@@ -170,8 +136,6 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
                     player.start()
                 }
                 isPlayingState = true
-                progressListener?.invoke(currentPositionSeconds, currentDurationSeconds, true)
-                startProgressTracker()
             }
         } catch (e: Exception) {
             Log.e(tag, "Resume failed: ${e.message}")
@@ -181,13 +145,11 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
     fun pause() {
         try {
             isPlayingState = false
-            stopProgressTracker()
             mediaPlayer?.let { player ->
                 if (player.isPlaying) {
                     player.pause()
                 }
             }
-            progressListener?.invoke(currentPositionSeconds, currentDurationSeconds, false)
         } catch (e: Exception) {
             Log.e(tag, "Pause failed: ${e.message}")
         }
@@ -196,7 +158,6 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
     fun stop() {
         try {
             isPlayingState = false
-            stopProgressTracker()
             mediaPlayer?.let { player ->
                 try {
                     if (player.isPlaying) {
@@ -215,7 +176,6 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
         } finally {
             mediaPlayer = null
             currentPositionSeconds = 0
-            progressListener?.invoke(0, currentDurationSeconds, false)
         }
     }
 
@@ -223,7 +183,6 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
         try {
             currentPositionSeconds = seconds
             mediaPlayer?.seekTo(seconds * 1000)
-            progressListener?.invoke(seconds, currentDurationSeconds, isPlayingState)
         } catch (e: Exception) {
             Log.e(tag, "Seek failed: ${e.message}")
         }
@@ -269,14 +228,5 @@ class RealAudioEngine(private var defaultContext: Context? = null) {
         } catch (e: Exception) {
             Log.e(tag, "Volume update failed: ${e.message}")
         }
-    }
-
-    private fun startProgressTracker() {
-        handler.removeCallbacks(progressRunnable)
-        handler.post(progressRunnable)
-    }
-
-    private fun stopProgressTracker() {
-        handler.removeCallbacks(progressRunnable)
     }
 }

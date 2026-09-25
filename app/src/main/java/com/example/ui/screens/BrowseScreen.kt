@@ -54,7 +54,7 @@ fun BrowseScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (language == AppLanguage.HINDI) "हाल ही की फाइलें" else "Recent files",
+                            text = language.translate("Recent files"),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
@@ -62,7 +62,7 @@ fun BrowseScreen(
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Text(
-                            text = if (language == AppLanguage.HINDI) "सभी देखें >" else "See all >",
+                            text = language.translate("See all >"),
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
@@ -92,7 +92,7 @@ fun BrowseScreen(
         item {
             Column {
                 Text(
-                    text = if (language == AppLanguage.HINDI) "श्रेणियां" else "Categories",
+                    text = language.translate("Categories"),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
@@ -137,7 +137,7 @@ fun BrowseScreen(
         item {
             Column {
                 Text(
-                    text = if (language == AppLanguage.HINDI) "संग्रह" else "Collections",
+                    text = language.translate("Collections"),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
@@ -150,8 +150,8 @@ fun BrowseScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     CollectionCard(
-                        title = if (language == AppLanguage.HINDI) "पसंदीदा फाइलें" else "Starred files",
-                        subtitle = if (language == AppLanguage.HINDI) "0 आइटम" else "0 items",
+                        title = language.translate("Starred files"),
+                        subtitle = language.translate("0 items"),
                         icon = Icons.Filled.Star,
                         iconColor = Color(0xFFF9AB00),
                         iconBgColor = Color(0xFF473618),
@@ -159,7 +159,7 @@ fun BrowseScreen(
                         onClick = onOpenStarred
                     )
                     CollectionCard(
-                        title = if (language == AppLanguage.HINDI) "सुरक्षित फ़ोल्डर" else "Safe folder",
+                        title = language.translate("Safe folder"),
                         subtitle = "Protected PIN",
                         icon = Icons.Filled.Shield,
                         iconColor = Color(0xFF00C853),
@@ -170,8 +170,8 @@ fun BrowseScreen(
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 CollectionCard(
-                    title = if (language == AppLanguage.HINDI) "ट्रैश (कचरा)" else "Trash",
-                    subtitle = if (language == AppLanguage.HINDI) "0 आइटम" else "0 items",
+                    title = language.translate("Trash"),
+                    subtitle = language.translate("0 items"),
                     icon = Icons.Filled.Delete,
                     iconColor = Color(0xFF9AA0A6),
                     iconBgColor = Color(0xFF2C323D),
@@ -190,7 +190,7 @@ fun BrowseScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (language == AppLanguage.HINDI) "स्टोरेज डिवाइसेस" else "Storage devices",
+                        text = language.translate("Storage devices"),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
@@ -209,7 +209,7 @@ fun BrowseScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (language == AppLanguage.HINDI) "रिफ्रेश करें" else "Refresh devices",
+                            text = language.translate("Refresh devices"),
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFF4FC3F7)
@@ -222,8 +222,8 @@ fun BrowseScreen(
                     storageDevices.forEach { device ->
                         StorageDeviceCard(
                             device = device,
-                            languageTitle = if (language == AppLanguage.HINDI) device.nameHi else device.nameEn,
-                            isHindi = (language == AppLanguage.HINDI),
+                            languageTitle = language.translate(device.nameEn),
+                            language = language,
                             onClick = { onDeviceClick(device) }
                         )
                     }

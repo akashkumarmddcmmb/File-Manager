@@ -28,6 +28,7 @@ import coil.request.ImageRequest
 import com.example.model.FileCategoryType
 import com.example.model.FileItem
 import com.example.model.StorageDeviceInfo
+import com.example.model.AppLanguage
 
 @Composable
 fun RecentFileCard(
@@ -296,7 +297,7 @@ fun CollectionCard(
 fun StorageDeviceCard(
     device: StorageDeviceInfo,
     languageTitle: String,
-    isHindi: Boolean = false,
+    language: AppLanguage = AppLanguage.ENGLISH,
     onClick: () -> Unit
 ) {
     Surface(
@@ -355,10 +356,18 @@ fun StorageDeviceCard(
                     }
                 }
                 Spacer(modifier = Modifier.height(3.dp))
-                val spaceText = if (isHindi) {
-                    "${device.totalFormatted} में से ${device.freeFormatted} खाली"
-                } else {
-                    "${device.freeFormatted} free of ${device.totalFormatted}"
+                val spaceText = when (language) {
+                    AppLanguage.HINDI -> "${device.totalFormatted} में से ${device.freeFormatted} खाली"
+                    AppLanguage.SPANISH -> "${device.freeFormatted} libres de ${device.totalFormatted}"
+                    AppLanguage.MARATHI -> "${device.totalFormatted} पैकी ${device.freeFormatted} मोकळे"
+                    AppLanguage.BENGALI -> "${device.totalFormatted} এর মধ্যে ${device.freeFormatted} খালি"
+                    AppLanguage.TAMIL -> "${device.totalFormatted} இல் ${device.freeFormatted} இலவசம்"
+                    AppLanguage.TELUGU -> "${device.totalFormatted} లో ${device.freeFormatted} ఖాళీగా ఉంది"
+                    AppLanguage.GUJARATI -> "${device.totalFormatted} માંથી ${device.freeFormatted} ખાલી"
+                    AppLanguage.PUNJABI -> "${device.totalFormatted} ਵਿੱਚੋਂ ${device.freeFormatted} ਖਾਲੀ"
+                    AppLanguage.FRENCH -> "${device.freeFormatted} libres sur ${device.totalFormatted}"
+                    AppLanguage.ARABIC -> "خالٍ ${device.freeFormatted} من أصل ${device.totalFormatted}"
+                    else -> "${device.freeFormatted} free of ${device.totalFormatted}"
                 }
                 Text(
                     text = spaceText,
