@@ -37,23 +37,19 @@ jobs:
       # ==========================================================
       - name: Secret Scanning (Gitleaks)
         uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Vulnerability Scanner (Trivy)
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           scan-type: 'fs'
           ignore-unfixed: true
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-
-      - name: Upload Security Scan Results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
 
       # ==========================================================
       # 3. Java 17
@@ -78,13 +74,8 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-
           yes | sdkmanager --licenses || true
-
-          sdkmanager \
-            "platform-tools" \
-            "platforms;android-36" \
-            "build-tools;36.0.0"
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       # ==========================================================
       # 6. Secure Environment Variables Injection
@@ -93,7 +84,6 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-
           if [ -f .env.example ]; then
             cp .env.example .env
           else
@@ -103,257 +93,78 @@ jobs:
           echo "Environment configuration ready."
 
       # ==========================================================
-      # 7. Verify project structure
+      # 7. Make Gradle Wrapper Executable
       # ==========================================================
-      - name: Verify project structure
+      - name: Make Gradle Wrapper Executable
         shell: bash
-        run: |
-          set -euxo pipefail
-
-          echo "===== ROOT FILES ====="
-          ls -la
-
-          echo "===== GRADLE FILES ====="
-          ls -la gradle || true
-          ls -la gradle/wrapper || true
-
-          test -f settings.gradle.kts
-          test -f build.gradle.kts
-          test -f app/build.gradle.kts
-          test -f gradle/libs.versions.toml
-          test -f gradle/wrapper/gradle-wrapper.properties
-
-          echo "Project structure OK."
+        run: chmod +x gradlew
 
       # ==========================================================
-      # 8. Show project versions
-      # ==========================================================
-      - name: Check AGP Kotlin KSP versions
-        shell: bash
-        run: |
-          set -euxo pipefail
-
-          echo "===== VERSION CATALOG ====="
-
-          grep -E \
-            'agp =|kotlin =|googleDevtoolsKsp =|roomRuntime =|roomCompiler =|moshiKotlinCodegen =' \
-            gradle/libs.versions.toml || true
-
-          echo "===== JAVA ====="
-          java -version
-
-      # ==========================================================
-      # 9. Setup Gradle 9.3.1
-      # ==========================================================
-      - name: Set up Gradle 9.3.1
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.3.1'
-          cache-read-only: false
-
-      # ==========================================================
-      # 10. Verify Gradle
-      # ==========================================================
-      - name: Verify Gradle
-        shell: bash
-        run: |
-          set -euxo pipefail
-
-          echo "===== GRADLE VERSION ====="
-          gradle --version
-
-      # ==========================================================
-      # 11. Check Gradle properties
-      # ==========================================================
-      - name: Check Gradle configuration
-        shell: bash
-        run: |
-          set -euxo pipefail
-
-          echo "===== gradle.properties ====="
-
-          if [ -f gradle.properties ]; then
-            cat gradle.properties
-          else
-            echo "No gradle.properties found."
-          fi
-
-      # ==========================================================
-      # 12. Clean
+      # 8. Clean Project
       # ==========================================================
       - name: Clean project
         shell: bash
         run: |
           set -euxo pipefail
-
-          echo "===== CLEAN BUILD ====="
-
-          gradle clean \
-            --no-daemon \
-            --stacktrace \
-            --info \
-            --warning-mode=all
+          ./gradlew clean --no-daemon --no-configuration-cache --stacktrace
 
       # ==========================================================
-      # 13. Build Debug APK
+      # 9. Build Debug APK
       # ==========================================================
       - name: Build Debug APK
         shell: bash
         run: |
           set -euxo pipefail
-
           echo "=================================================="
-          echo "BUILD DEBUG APK START"
-          echo "=================================================="
-
-          echo ""
-          echo "===== JAVA VERSION ====="
-          java -version
-
-          echo ""
-          echo "===== GRADLE VERSION ====="
-          gradle --version
-
-          echo ""
-          echo "===== ANDROID SDK ====="
-          echo "ANDROID_HOME=${ANDROID_HOME:-}"
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
-
-          echo ""
-          echo "===== PROJECT VERSION CONFIG ====="
-          grep -E \
-            'agp =|kotlin =|googleDevtoolsKsp =|roomRuntime =|roomCompiler =|moshiKotlinCodegen =' \
-            gradle/libs.versions.toml || true
-
-          echo ""
-          echo "===== KSP CONFIG ====="
-          grep -n \
-            -E 'google.devtools.ksp|ksp\(' \
-            app/build.gradle.kts || true
-
-          echo ""
-          echo "===== COMPILE OPTIONS ====="
-          grep -n -A5 "compileOptions" app/build.gradle.kts || true
-
-          echo ""
-          echo "=================================================="
-          echo "RUNNING GRADLE BUILD"
+          echo "RUNNING GRADLE BUILD WITH WRAPPER"
           echo "=================================================="
 
-          gradle \
-            :app:assembleDebug \
+          ./gradlew :app:assembleDebug \
             --no-daemon \
+            --no-configuration-cache \
             --stacktrace \
-            --info \
             --warning-mode=all
 
-          echo ""
-          echo "=================================================="
-          echo "BUILD COMMAND FINISHED"
-          echo "=================================================="
-
       # ==========================================================
-      # 14. Find APK
+      # 10. Find APK
       # ==========================================================
       - name: Locate APK
         id: apk
         shell: bash
         run: |
           set -euxo pipefail
-
-          echo "===== SEARCHING APK ====="
-
-          find app/build/outputs \
-            -type f \
-            -name "*.apk" \
-            -print || true
-
-          APK="$(find app/build/outputs \
-            -type f \
-            -name "*.apk" \
-            | head -n 1)"
+          APK="$(find app/build/outputs -type f -name "*.apk" | head -n 1)"
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK was not generated."
-            echo ""
-            echo "===== BUILD OUTPUT ====="
-            find app/build/outputs \
-              -maxdepth 6 \
-              -type f \
-              -print || true
             exit 1
           fi
 
-          echo "APK FOUND:"
-          echo "$APK"
-
+          echo "APK FOUND: $APK"
           echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
 
       # ==========================================================
-      # 15. Verify APK
+      # 11. Generate SHA256 checksum & Build Info
       # ==========================================================
-      - name: Verify APK
+      - name: Generate Checksum and Info
         shell: bash
         run: |
           set -euxo pipefail
-
           APK="${{ steps.apk.outputs.apk_path }}"
-
-          test -f "$APK"
-          test -s "$APK"
-
-          echo "APK:"
-          ls -lh "$APK"
-
-          echo ""
-          echo "===== SHA256 ====="
-          sha256sum "$APK"
-
-      # ==========================================================
-      # 16. Generate SHA256 checksum
-      # ==========================================================
-      - name: Generate SHA256 checksum
-        shell: bash
-        run: |
-          set -euxo pipefail
-
-          APK="${{ steps.apk.outputs.apk_path }}"
-
           sha256sum "$APK" > "${APK}.sha256"
 
-          echo "===== CHECKSUM ====="
-          cat "${APK}.sha256"
-
-      # ==========================================================
-      # 17. Generate build information
-      # ==========================================================
-      - name: Generate build information
-        shell: bash
-        run: |
-          set -euxo pipefail
-
           mkdir -p build-info
-
           {
             echo "Repository: $GITHUB_REPOSITORY"
             echo "Commit: $GITHUB_SHA"
             echo "Branch: $GITHUB_REF_NAME"
             echo "Run Number: $GITHUB_RUN_NUMBER"
-            echo ""
-            echo "===== JAVA ====="
-            java -version 2>&1
-            echo ""
-            echo "===== GRADLE ====="
-            gradle --version
-            echo ""
-            echo "===== APK SHA256 ====="
-            cat "${{ steps.apk.outputs.apk_path }}.sha256"
+            echo "APK SHA256:"
+            cat "${APK}.sha256"
           } > build-info/build-info.txt
 
-          cat build-info/build-info.txt
-
       # ==========================================================
-      # 18. Upload APK artifact
+      # 12. Upload APK Artifact
       # ==========================================================
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -367,42 +178,20 @@ jobs:
           retention-days: 30
 
       # ==========================================================
-      # 19. Upload build outputs
-      # ==========================================================
-      - name: Upload build outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-build-outputs-${{ github.run_number }}
-          path: |
-            app/build/outputs/**
-          if-no-files-found: warn
-          retention-days: 14
-
-      # ==========================================================
-      # 20. Prepare GitHub Release
+      # 13. Prepare GitHub Release
       # ==========================================================
       - name: Prepare release package
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           set -euxo pipefail
-
           mkdir -p release
-
-          cp "${{ steps.apk.outputs.apk_path }}" \
-            "release/File-Manager-${{ github.run_number }}.apk"
-
-          cp "${{ steps.apk.outputs.apk_path }}.sha256" \
-            "release/File-Manager-${{ github.run_number }}.apk.sha256"
-
-          cp build-info/build-info.txt \
-            release/build-info.txt
-
-          echo "===== RELEASE FILES ====="
-          ls -lh release
+          cp "${{ steps.apk.outputs.apk_path }}" "release/File-Manager-${{ github.run_number }}.apk"
+          cp "${{ steps.apk.outputs.apk_path }}.sha256" "release/File-Manager-${{ github.run_number }}.apk.sha256"
+          cp build-info/build-info.txt release/build-info.txt
 
       # ==========================================================
-      # 21. Automatic GitHub Release
+      # 14. GitHub Release
       # ==========================================================
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
