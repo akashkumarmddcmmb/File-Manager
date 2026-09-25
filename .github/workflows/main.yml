@@ -40,98 +40,92 @@ jobs:
         run: |
           set -e
 
-          echo "Java:"
+          echo "======================================"
+          echo "JAVA"
+          echo "======================================"
           java -version
 
           echo ""
-          echo "Android SDK:"
+          echo "======================================"
+          echo "ANDROID SDK"
+          echo "======================================"
           sdkmanager --version
 
           echo ""
           echo "ANDROID_HOME:"
           echo "$ANDROID_HOME"
 
-      - name: Find Android Gradle Project
+      - name: Verify Project Structure
         shell: bash
         run: |
           set -e
 
-          echo "Searching for Gradle Wrapper..."
+          echo "======================================"
+          echo "PROJECT STRUCTURE"
+          echo "======================================"
 
-          GRADLEW=$(find . \
-            -type f \
-            -name "gradlew" \
-            -not -path "./.git/*" \
-            -print -quit)
+          test -f "settings.gradle.kts"
+          test -f "build.gradle.kts"
+          test -f "app/build.gradle.kts"
+          test -f "gradle/wrapper/gradle-wrapper.properties"
 
-          if [ -z "$GRADLEW" ]; then
-            echo "ERROR: gradlew was not found."
-            echo ""
-            echo "Repository structure:"
-            find . -maxdepth 4 -type f \
-              -not -path "./.git/*" \
-              -print | sort
+          echo "settings.gradle.kts ........ OK"
+          echo "build.gradle.kts ........... OK"
+          echo "app/build.gradle.kts ....... OK"
+          echo "gradle-wrapper.properties .. OK"
+
+      - name: Detect Gradle Version
+        id: gradle_version
+        shell: bash
+        run: |
+          set -e
+
+          FILE="gradle/wrapper/gradle-wrapper.properties"
+
+          DISTRIBUTION_URL=$(grep '^distributionUrl=' "$FILE" | sed 's/^distributionUrl=//')
+
+          if [ -z "$DISTRIBUTION_URL" ]; then
+            echo "ERROR: distributionUrl was not found."
+            cat "$FILE"
             exit 1
           fi
 
-          GRADLE_DIR=$(dirname "$GRADLEW")
+          echo "Gradle distribution:"
+          echo "$DISTRIBUTION_URL"
 
-          echo "Gradle Wrapper found:"
-          echo "$GRADLEW"
+          VERSION=$(echo "$DISTRIBUTION_URL" | sed -n 's/.*gradle-\([0-9][0-9.]*\)-.*/\1/p')
 
-          echo "Gradle project directory:"
-          echo "$GRADLE_DIR"
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: Could not detect Gradle version."
+            exit 1
+          fi
 
-          echo "$GRADLE_DIR" > "$GITHUB_WORKSPACE/.gradle-project-dir"
+          echo "Detected Gradle version: $VERSION"
 
-          chmod +x "$GRADLEW"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Project Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ steps.gradle_version.outputs.version }}
 
       - name: Verify Gradle
         shell: bash
         run: |
           set -e
 
-          GRADLE_DIR=$(cat "$GITHUB_WORKSPACE/.gradle-project-dir")
-
-          cd "$GRADLE_DIR"
-
-          ./gradlew --version
-
-      - name: Show Android Project
-        shell: bash
-        run: |
-          set -e
-
-          GRADLE_DIR=$(cat "$GITHUB_WORKSPACE/.gradle-project-dir")
-
-          cd "$GRADLE_DIR"
-
           echo "======================================"
-          echo "Gradle Project"
+          echo "GRADLE"
           echo "======================================"
 
-          pwd
-
-          echo ""
-          echo "Settings:"
-          ls -la settings.gradle* 2>/dev/null || true
-
-          echo ""
-          echo "Build files:"
-          find . -maxdepth 3 -type f \
-            \( -name "build.gradle" -o -name "build.gradle.kts" \) \
-            -print | sort
+          gradle --version
 
       - name: Clean Project
         shell: bash
         run: |
           set -e
 
-          GRADLE_DIR=$(cat "$GITHUB_WORKSPACE/.gradle-project-dir")
-
-          cd "$GRADLE_DIR"
-
-          ./gradlew clean \
+          gradle clean \
             --no-daemon \
             --stacktrace
 
@@ -140,15 +134,11 @@ jobs:
         run: |
           set -e
 
-          GRADLE_DIR=$(cat "$GITHUB_WORKSPACE/.gradle-project-dir")
-
-          cd "$GRADLE_DIR"
-
           echo "======================================"
-          echo "Building Debug APK"
+          echo "BUILDING DEBUG APK"
           echo "======================================"
 
-          ./gradlew assembleDebug \
+          gradle :app:assembleDebug \
             --no-daemon \
             --stacktrace \
             --warning-mode all
@@ -159,32 +149,22 @@ jobs:
           set -e
 
           echo "======================================"
-          echo "Searching for generated APK"
+          echo "SEARCHING FOR APK"
           echo "======================================"
 
-          APK=$(find "$GITHUB_WORKSPACE" \
+          APK=$(find app/build/outputs \
             -type f \
             -name "*.apk" \
-            -not -path "*/.git/*" \
-            -print | head -n 1)
+            -print -quit)
 
           if [ -z "$APK" ]; then
-            echo ""
-            echo "ERROR: No APK was generated."
-            echo ""
-            echo "Build directories:"
-            find "$GITHUB_WORKSPACE" \
-              -type d \
-              -name "outputs" \
-              -print || true
+            echo "ERROR: APK was not generated."
 
             echo ""
-            echo "Gradle build files:"
-            find "$GITHUB_WORKSPACE" \
+            echo "Build output:"
+            find app/build/outputs \
               -type f \
-              \( -name "*.gradle" -o -name "*.gradle.kts" \) \
-              -not -path "*/.git/*" \
-              -print | sort
+              -print || true
 
             exit 1
           fi
@@ -196,28 +176,28 @@ jobs:
 
           ls -lh "$APK"
 
-      - name: Verify APK SHA-256
+      - name: Generate SHA-256
         shell: bash
         run: |
           set -e
 
           APK=$(cat "$GITHUB_WORKSPACE/.apk-path")
 
+          sha256sum "$APK" > "$APK.sha256"
+
           echo "======================================"
           echo "APK SHA-256"
           echo "======================================"
 
-          sha256sum "$APK"
+          cat "$APK.sha256"
 
-          sha256sum "$APK" > "$APK.sha256"
-
-      - name: Upload APK Artifact
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: File-Manager-Debug-APK
           path: |
-            **/*.apk
-            **/*.apk.sha256
+            app/build/outputs/**/*.apk
+            app/build/outputs/**/*.apk.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -226,8 +206,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: File-Manager-Build-Outputs
-          path: |
-            **/build/outputs/**
+          path: app/build/outputs/
           if-no-files-found: warn
           retention-days: 14
 
@@ -239,7 +218,7 @@ jobs:
           name: "File Manager Build ${{ github.run_number }}"
           generate_release_notes: true
           files: |
-            **/*.apk
-            **/*.apk.sha256
+            app/build/outputs/**/*.apk
+            app/build/outputs/**/*.apk.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
