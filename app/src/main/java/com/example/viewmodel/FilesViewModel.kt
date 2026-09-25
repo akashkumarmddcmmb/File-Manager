@@ -9,6 +9,8 @@ import com.example.audio.AudioNotificationListener
 import com.example.audio.RealAudioEngine
 import com.example.model.*
 import com.example.storage.StorageScanner
+import com.example.update.AppUpdateManager
+import com.example.update.UpdateResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +30,10 @@ data class FilesUiState(
     val lockOnExitImmediately: Boolean = true,
     val quickShareDeviceName: String = "Akash's Android Device",
     val quickShareVisibilityAll: Boolean = true,
+    val githubRepoPath: String = "akashkumarmddcmmb/file-manager",
+    val isCheckingForUpdates: Boolean = false,
+    val updateResult: UpdateResult? = null,
+    val showUpdateDialog: Boolean = false,
     val backgroundMusicPlayback: Boolean = true,
     val isUltraBatterySaver: Boolean = true,
     val searchQuery: String = "",
@@ -1272,6 +1278,32 @@ class FilesViewModel : ViewModel() {
 
     fun dismissCleanSnackbar() {
         _uiState.update { it.copy(cleanSuccessMessage = null) }
+    }
+
+    fun setGithubRepoPath(repo: String) {
+        _uiState.update { it.copy(githubRepoPath = repo) }
+    }
+
+    fun setUpdateDialogVisible(visible: Boolean) {
+        _uiState.update { it.copy(showUpdateDialog = visible) }
+    }
+
+    fun triggerCheckForUpdates(context: Context, showIfNoUpdate: Boolean = false) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingForUpdates = true, updateResult = null) }
+            val result = AppUpdateManager.checkUpdate(context, _uiState.value.githubRepoPath)
+            _uiState.update { state ->
+                state.copy(
+                    isCheckingForUpdates = false,
+                    updateResult = result,
+                    showUpdateDialog = when (result) {
+                        is UpdateResult.Success -> result.updateAvailable || showIfNoUpdate
+                        is UpdateResult.Error -> showIfNoUpdate
+                        is UpdateResult.NoUpdate -> showIfNoUpdate
+                    }
+                )
+            }
+        }
     }
 
     fun getCategoryCount(category: FileCategoryType): Int {

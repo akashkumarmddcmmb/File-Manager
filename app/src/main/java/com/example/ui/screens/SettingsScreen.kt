@@ -36,6 +36,10 @@ fun SettingsScreen(
     onOpenStorageBreakdown: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
     onOpenTerms: () -> Unit,
+    isCheckingForUpdates: Boolean,
+    githubRepoPath: String,
+    onGithubRepoPathChange: (String) -> Unit,
+    onCheckForUpdates: () -> Unit,
     onBack: () -> Unit
 ) {
     var isDarkTheme by remember { mutableStateOf("system") } // "system", "light", "dark"
@@ -809,6 +813,92 @@ fun SettingsScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(text = "Contact / Support", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(text = "akashkumarmddcmmb@gmail.com", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
+                        }
+
+                        // GitHub Repository configuration (For updates)
+                        Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        Text(
+                            text = if (isHindi) "अपडेट कॉन्फ़िगरेशन (GitHub)" else "Update Configuration (GitHub)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF00C853),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = githubRepoPath,
+                                onValueChange = onGithubRepoPathChange,
+                                label = { Text(if (isHindi) "रिपोजिटरी (owner/repo)" else "Repository (owner/repo)") },
+                                textStyle = MaterialTheme.typography.bodySmall,
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF00C853),
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surface
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        tint = Color(0xFF00C853),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = if (isHindi) "नए अपडेट की जांच करें" else "Check for Updates",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = if (isHindi) "नवीनतम APK अपडेट इंस्टॉल करें" else "Install latest APK update",
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                if (isCheckingForUpdates) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color(0xFF00C853)
+                                    )
+                                } else {
+                                    Button(
+                                        onClick = onCheckForUpdates,
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF00C853),
+                                            contentColor = Color.White
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(if (isHindi) "जांचें" else "Check", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(6.dp))

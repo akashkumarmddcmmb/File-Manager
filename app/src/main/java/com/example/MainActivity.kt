@@ -9,17 +9,27 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.*
 import com.example.ui.components.*
 import com.example.ui.modals.*
 import com.example.ui.screens.*
 import com.example.ui.theme.FilesTheme
+import com.example.update.UpdateResult
 import com.example.viewmodel.FilesUiState
 import com.example.viewmodel.FilesViewModel
 import kotlinx.coroutines.launch
@@ -52,6 +62,8 @@ class MainActivity : ComponentActivity() {
                 val audioManager = com.example.audio.Media3AudioManager(context.applicationContext)
                 viewModel.setMedia3AudioManager(audioManager)
                 viewModel.refreshRealStorage(context.applicationContext)
+                // Silent update check on startup (only shows dialog if update is available)
+                viewModel.triggerCheckForUpdates(context.applicationContext, showIfNoUpdate = false)
             }
 
             FilesTheme(darkTheme = true) {
@@ -519,6 +531,7 @@ private fun MainAppContent(
                         )
                     }
                     AppNavScreen.SETTINGS -> {
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         SettingsScreen(
                             currentLanguage = uiState.language,
                             onSelectLanguage = { viewModel.setLanguage(it) },
@@ -532,6 +545,10 @@ private fun MainAppContent(
                                 legalPolicyType = PolicyType.TERMS
                                 showLegalPoliciesModal = true
                             },
+                            isCheckingForUpdates = uiState.isCheckingForUpdates,
+                            githubRepoPath = uiState.githubRepoPath,
+                            onGithubRepoPathChange = { viewModel.setGithubRepoPath(it) },
+                            onCheckForUpdates = { viewModel.triggerCheckForUpdates(context, showIfNoUpdate = true) },
                             onBack = { handleBackNavigation() }
                         )
                     }
@@ -625,6 +642,175 @@ private fun MainAppContent(
             initialType = legalPolicyType,
             language = uiState.language,
             onDismiss = { showLegalPoliciesModal = false }
+        )
+    }
+
+    if (uiState.showUpdateDialog && uiState.updateResult != null) {
+        val language = uiState.language
+        val isHindi = language == AppLanguage.HINDI
+        val result = uiState.updateResult
+
+        AlertDialog(
+            onDismissRequest = { viewModel.setUpdateDialogVisible(false) },
+            icon = {
+                Icon(
+                    imageVector = when (result) {
+                        is UpdateResult.Success -> {
+                            if (result.updateAvailable) Icons.Default.CloudDownload else Icons.Default.Check
+                        }
+                        is UpdateResult.Error -> Icons.Default.Info
+                        is UpdateResult.NoUpdate -> Icons.Default.Check
+                    },
+                    contentDescription = null,
+                    tint = when (result) {
+                        is UpdateResult.Success -> {
+                            if (result.updateAvailable) Color(0xFF00C853) else Color(0xFF1973E8)
+                        }
+                        is UpdateResult.Error -> Color(0xFFD93025)
+                        is UpdateResult.NoUpdate -> Color(0xFF1973E8)
+                    },
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = when (result) {
+                        is UpdateResult.Success -> {
+                            if (result.updateAvailable) {
+                                if (isHindi) "नया अपडेट उपलब्ध है! 🎉" else "New Update Available! 🎉"
+                            } else {
+                                if (isHindi) "आप नवीनतम संस्करण पर हैं!" else "You are on the Latest Version!"
+                            }
+                        }
+                        is UpdateResult.Error -> {
+                            if (isHindi) "अपडेट जांच विफल रही" else "Update Check Failed"
+                        }
+                        is UpdateResult.NoUpdate -> {
+                            if (isHindi) "कोई अपडेट उपलब्ध नहीं है" else "No Updates Available"
+                        }
+                    },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    when (result) {
+                        is UpdateResult.Success -> {
+                            if (result.updateAvailable) {
+                                Text(
+                                    text = if (isHindi) 
+                                        "एक नया संस्करण (${result.latestVersion}) डाउनलोड के लिए तैयार है। आपका वर्तमान संस्करण ${result.currentVersion} है।"
+                                        else 
+                                        "A new version (${result.latestVersion}) is available for download. Your current version is ${result.currentVersion}.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (isHindi) "बदलाव (Changelog):" else "Release Changelog:",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    color = Color(0xFF00C853)
+                                )
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 140.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    tonalElevation = 1.dp
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .padding(10.dp)
+                                            .verticalScroll(rememberScrollState())
+                                    ) {
+                                        Text(
+                                            text = result.changelog,
+                                            fontSize = 11.sp,
+                                            lineHeight = 16.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = if (isHindi) 
+                                        "बधाई हो! आप पहले से ही नवीनतम आधिकारिक संस्करण (${result.currentVersion}) का उपयोग कर रहे हैं।"
+                                        else 
+                                        "Congratulations! You are already running the latest official version (${result.currentVersion}) of File Manager.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        is UpdateResult.Error -> {
+                            Text(
+                                text = if (isHindi) 
+                                    "अपडेट की जांच करते समय एक त्रुटि हुई: ${result.message}\n\nकृपया सुनिश्चित करें कि आपका रिपॉजिटरी पाथ सही है और आपके पास इंटरनेट कनेक्शन है।"
+                                    else 
+                                    "An error occurred while checking for updates: ${result.message}\n\nPlease verify that your repository path is correct and you have an active network connection.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        is UpdateResult.NoUpdate -> {
+                            Text(
+                                text = if (isHindi) 
+                                    "आपके डिवाइस पर वर्तमान में इंस्टॉल किया गया संस्करण नवीनतम उपलब्ध संस्करण है।"
+                                    else 
+                                    "The version currently installed on your device is the latest available version.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { viewModel.setUpdateDialogVisible(false) }) {
+                        Text(
+                            text = if (isHindi) "बाद में" else "Later",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (result is UpdateResult.Success && result.updateAvailable) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                        Button(
+                            onClick = {
+                                viewModel.setUpdateDialogVisible(false)
+                                try {
+                                    uriHandler.openUri(result.downloadUrl)
+                                } catch (e: Exception) {
+                                    uriHandler.openUri(result.releasePageUrl)
+                                }
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF00C853),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Text(
+                                text = if (isHindi) "अभी अपडेट करें" else "Update Now",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 
